@@ -37,6 +37,11 @@ public final class ControllerPlusConfig {
      * spyglass animation). Off by default: it buzzed for as long as the spyglass stayed up.
      */
     public boolean scopeRumble = false;
+    /**
+     * Right-stick scrolling in whole wheel notches for screens that need them (1.0.5, see
+     * {@code client.StickScroll}). Off gives those screens Controlify's own scrolling back.
+     */
+    public boolean stickScroll = true;
     /** A modifier held this long without a layer button does nothing on release. */
     public int modifierTapMs = 300;
     public boolean customized = false;
@@ -52,6 +57,7 @@ public final class ControllerPlusConfig {
         c.enabled = enabled;
         c.rumble = rumble;
         c.scopeRumble = scopeRumble;
+        c.stickScroll = stickScroll;
         c.modifierTapMs = modifierTapMs;
         c.customized = true; // the copy always holds the full list; normalize() decides on save
         for (BindEntry e : effectiveBinds()) c.binds.add(e.copy());

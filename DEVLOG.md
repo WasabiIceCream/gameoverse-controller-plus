@@ -1,5 +1,67 @@
 # DEVLOG
 
+## 2026-09-30: 1.0.5, right-stick scrolling in the Guide and book screens
+
+User report (1.0.4 in game): in the Gameoverse Guide (Oracle Index) the virtual cursor moves and clicks,
+but the right stick scrolls neither a long page nor the category list.
+
+Findings (Controlify 3.5.3 source at the tag, Oracle Index 2.0.0-xplat, the other mods' jars, Minecraft
+26.1.2):
+
+- `rearth.oracle.ui.OracleScreen` is in `virtual_mouse_screens` (Working instance and the pack default
+  `host-modpack/main/config/controlify/controlify.json`), and it has no Controlify screen processor, so
+  the vmouse behaviour is DEFAULT and `VirtualMouseHandler.handleScroll` runs: `scrollY +=
+  vmouse_scroll_up - vmouse_scroll_down` analogue (right stick up/down in Controlify's default binds; our
+  profile doesn't rebind them) every controller tick. `updateMouse` (every frame) then sends
+  `scrollY * realtimeDeltaTicks` through `MouseHandler.onScroll` and subtracts it: well under one notch
+  per frame at any normal frame rate. The list isn't the gap.
+- Oracle Index: `WikiBaseScreen.mouseScrolled` passes the amount to its root widgets'
+  `handleMouseScroll`; `ScrollWidget.handleMouseScroll` checks `isInBounds` at the cursor, then
+  `targetScrollOffset += -(int) amount * scrollSpeed (12)`. The `d2i` truncates every fraction to 0.
+  The content pane and the sidebar are both `ScrollWidget`s. No errors in the client log.
+- Other screens in the list: Field Guide (`BookScreen` subclasses: category/journal page per call,
+  entry variant cycle per call, `VariantOverviewWidget` page per call), Scholar `SpreadBookScreen` (page
+  per call), MapStitch `WorldMapScreen` (`zoomLevel += (int) signum(amount)`, -2..1), Create `PonderUI`
+  (`scroll(boolean)` per call), `ValueSettingsScreen` (`signum` value step), JEI `RecipesGui` (next/prev
+  page per call when not over a scroll area) all step on every frame's fraction, and keep stepping for
+  the frames the pending scroll takes to decay after release. Fine with fractions: Skill Tree
+  (`com.specialities` SkillsScreen, clamped double), Skill Forest (puffish, `pow(2, amount/4)` zoom),
+  Better Advancements (pan by amount * 16; zoom needs Ctrl), Cloth Config, Apotheosis World Tier screens
+  (no override), Haunted Harvest carving (no override). Lavender isn't in the pack.
+
+Fix: `VirtualMouseHandlerMixin` (`@Inject` HEAD cancellable on `handleScroll(ControllerEntity)`, a
+public Controlify method, `require = 0`, plugin logs `Controlify hook applied: stick scrolling`). For a
+screen whose class or a superclass is in `StickScroll.RATES` it cancels Controlify's accumulation and
+`StickScroller` (pure, 8 tests) turns the same bindings' deflection into whole notches: one at once when
+the stick leaves a 0.15 deadzone, then (deflection past the deadzone, scaled 0-1) x max rate per second,
+max rate 25/s for Oracle's `WikiBaseScreen`, 4/s Field Guide, Scholar and Ponder, 5/s the world map,
+6/s JEI recipes, 8/s value boards. Each notch is its own `MouseHandler.onScroll(window, 0, +-1)` call
+through our existing invoker (sign-only screens count calls), stopping if the screen changes. Direction
+change or release restarts; a screen change resets. Config `stickScroll` (on), "Stick Scrolling Fix"
+in the general category. No config version bump (a missing field loads as the default, true).
+
+Not changed: Controlify's scrolling everywhere else, container screens (their processor), the virtual
+mouse screen list. JEI's ingredient overlay in inventories (`CURSOR_SCROLL`) turns a page per frame the
+same way, not reported, left alone.
+
+Tests: 92 (was 84), `StickScrollerTest`. Not smoke-tested in a dev client this time (a plain HEAD
+inject on a public method whose signature was checked with `javap`); the log line confirms it.
+
+In-game test script (1.0.5; controller, virtual cursor on):
+1. Log: `Controlify hook applied: stick scrolling (VirtualMouseHandler.handleScroll)` plus the other
+   three, `Loaded 24 advanced controller binds (defaults)`.
+2. Hold Back: Guide opens. Cursor over a long page: right stick down/up scrolls it, faster the further
+   it is pushed; a light flick moves one step. Cursor over the left category list: it scrolls instead.
+   Search screen results scroll too.
+3. Field Guide / a Scholar book (or lectern): a push turns one page, holding turns about 4 per second at
+   full tilt; releasing stops at once (no extra pages).
+4. World map (tap D-up): right stick zooms one level at a time instead of jumping to the ends; left
+   stick/cursor and dragging unchanged.
+5. JEI recipe screen with the cursor: right stick pages through recipes one at a time.
+6. Skill Tree, Skill Forest, Better Advancements, Cloth Config: scroll/zoom as before (Controlify's own).
+7. Advanced Binds Settings: "Stick Scrolling Fix" off, Save: the Guide stops scrolling again (Controlify's
+   own behaviour), back on restores it.
+
 ## 2026-09-30: 1.0.4, scoped B back to roll, RT hints for Spyglass Astronomy
 
 User feedback (1.0.3 not yet tested in game otherwise): holding B to draw constellations while scoped is

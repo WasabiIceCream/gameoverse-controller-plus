@@ -10,6 +10,8 @@
   "gameoverse_controller_plus.config.rumble": "Rumble on Hold",
   "gameoverse_controller_plus.config.rumble.desc": "A short rumble when a hold or multi-tap bind fires.",
   "gameoverse_controller_plus.config.scope_rumble": "Rumble While Scoped",
+  "gameoverse_controller_plus.config.stick_scroll": "Stick Scrolling Fix",
+  "gameoverse_controller_plus.config.stick_scroll.desc": "With the virtual cursor on, the right stick scrolls in whole mouse wheel steps in screens that ignore Controlify's smooth scrolling or turn a page on every frame of it: the Gameoverse Guide, Field Guide, Scholar books, the world map zoom, Ponder, Create value boards and JEI's recipe screen. Push further to scroll faster. Off gives those screens Controlify's own scrolling back.",
   "gameoverse_controller_plus.config.scope_rumble.desc": "Controlify's own light rumble for as long as a spyglass is up. Off by default: it never stops while you look through it.",
   "gameoverse_controller_plus.config.modifier_tap_ms": "Layer Button Tap Time",
   "gameoverse_controller_plus.config.modifier_tap_ms.desc": "A layer button (LB, RB) released within this time, without pressing a button of its layer, still does its normal action. Held longer, it does nothing.",

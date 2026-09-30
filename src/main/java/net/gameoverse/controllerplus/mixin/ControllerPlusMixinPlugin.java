@@ -32,6 +32,14 @@ public final class ControllerPlusMixinPlugin implements IMixinConfigPlugin {
             HookStatus.forceHookChecked = true;
             report(ok, targetClassName, "held binding (InputBindingImpl.pushState)",
                     "Hold-while and toggle actions on Controlify bindings fall back to short presses.");
+        } else if (mixinClassName.endsWith("VirtualMouseHandlerMixin")) {
+            if (callsHandler(targetClass, "handleScroll", "gcp$stickScroll")) {
+                LOG.info("Controlify hook applied: stick scrolling (VirtualMouseHandler.handleScroll)");
+            } else {
+                LOG.warn("Controlify hook NOT applied: stick scrolling; the Guide, Field Guide, Scholar books and other "
+                        + "whole-notch screens scroll with Controlify's own (fractional) scrolling. "
+                        + "Controlify's VirtualMouseHandler.handleScroll changed.");
+            }
         } else if (mixinClassName.endsWith("GuideInstanceImplMixin")) {
             boolean filter = callsHandler(targetClass, "update", "gcp$filterGuideRules");
             boolean append = callsHandler(targetClass, "update", "gcp$appendGuideLines");

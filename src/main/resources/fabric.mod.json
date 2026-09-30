@@ -4,7 +4,7 @@
   "version": "${version}",
 
   "name": "Gameoverse Controller Plus",
-  "description": "Hold, multi-tap, chord and modifier-layer controller binds on top of Controlify: spell hotbar on LB/RB layers, tap/hold splits for overloaded buttons, Spyglass Astronomy while scoped, JEI recipes and uses in inventories.",
+  "description": "Hold, multi-tap, chord and modifier-layer controller binds on top of Controlify: spell hotbar on LB/RB layers, tap/hold splits for overloaded buttons, Spyglass Astronomy while scoped, JEI recipes and uses in inventories, whole-step right-stick scrolling in the Guide and other book screens.",
   "authors": [
     "WasabiIceCream"
   ],

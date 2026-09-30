@@ -119,6 +119,32 @@ controller input (LB+RB went to the Skill Forest instead).
 our Spell Engine config (`spellHotbarUseKey: true`) the first spell is cast with LT (use), so LB+A
 casts the next one.
 
+### Right-stick scrolling in the Guide and other book screens (1.0.5)
+
+In screens on Controlify's virtual cursor, the right stick scrolls. Controlify adds the stick's
+deflection to a pending scroll every controller tick and hands it out a fraction of a notch every
+frame, which suits smooth scroll lists but not screens that read the wheel in whole notches:
+
+- **Gameoverse Guide** (Oracle Index `WikiBaseScreen`, so page content, the category list and search
+  results): its `ScrollWidget` moves `(int) amount * 12` px, and every fraction truncates to 0, so
+  nothing scrolled.
+- **Field Guide** (page/variant), **Scholar** books and lecterns (page), **MapStitch world map** (zoom
+  level), **Create Ponder** (scene), **Create value boards** (value) and **JEI's recipe screen** (page)
+  act on each call's sign: a step on every frame, plus the frames the pending scroll takes to run out
+  after the stick is released, so pages flew by and the map zoom jumped to its ends.
+
+For those screens (matched by class or superclass name, in `client/StickScroll`) the mod skips
+Controlify's accumulation (`VirtualMouseHandlerMixin`, `@Inject` at the head of
+`VirtualMouseHandler.handleScroll`, `require = 0`) and scrolls in whole notches through
+`MouseHandler.onScroll` at the cursor, the path of a mouse wheel: the first notch as soon as the
+stick leaves a 0.15 deadzone (on top of Controlify's own), then a rate proportional to the deflection
+past it (`engine/StickScroller`, unit tested), at full deflection 25 notches/s in the Guide (300 px/s),
+4/s for page turns and Ponder, 5/s for the map zoom, 6/s in JEI's recipes, 8/s on value boards. It
+reads Controlify's `vmouse_scroll_up`/`down` bindings, so a rebind in Controlify still applies. Every
+other screen (Skill Tree, Skill Forest, Better Advancements, Cloth Config, inventories, ...) keeps
+Controlify's smooth scrolling. The virtual cursor must be on in the screen (it is for all of these
+in the pack's `controlify.json`; Back toggles it). Config "Stick Scrolling Fix" (on) turns it off.
+
 ## How it works
 
 - **Trigger engine** (`engine/TriggerEngine`, pure Java, unit tested). Per controller, ticked on
@@ -243,7 +269,7 @@ Both use `require = 0`, and a mixin config plugin checks after transformation th
 really is called from `pushState`. If Controlify changes these methods the log shows a boxed
 `Controlify hook NOT applied` error and the mod goes inactive (or hold-while falls back to short
 presses) instead of crashing. On a healthy start the log has three `Controlify hook applied` lines (the
-input mask one only once a controller is in use).
+input mask one only once a controller is in use), and since 1.0.5 a fourth for stick scrolling.
 `fabric.mod.json` pins `controlify` to `>=3.5.3 <3.6`.
 
 **When Controlify updates**: recheck both targets (`javap -p -c` on `InputComponent.pushState` and
@@ -278,7 +304,7 @@ never changes the held item.
 
 `config/gameoverse_controller_plus.json`, edited in game through ModMenu or Controlify's
 bindable "Advanced Binds Settings" action (unbound by default, can go in the radial menu). A YACL
-screen: general settings (enabled, rumble on hold, Rumble While Scoped, layer tap time), then one
+screen: general settings (enabled, rumble on hold, Rumble While Scoped, Stick Scrolling Fix, layer tap time), then one
 collapsible group per bind with where (In Game, Inventory Screens, JEI Recipe Screen), trigger
 type, button, modifier/second button, hold time, tap count, tap window, action (dropdown of every
 Controlify binding id plus this mod's actions, free text allowed) and mode; Add, Remove and Reset
@@ -315,6 +341,10 @@ AutoModpack's manifest picks it up) and the Working test instance's `mods/`.
   version renames it, the log says so once and Y/X still act but show no hints, and there is no RT
   line; RT still draws.
 - No "press the buttons" capture widget in the config screen.
+- Stick scrolling (1.0.5) is a fourth hook (`VirtualMouseHandler.handleScroll`); if it doesn't apply the
+  log says `Controlify hook NOT applied: stick scrolling` and those screens get Controlify's own
+  scrolling. Screens not in `StickScroll.RATES` are untouched; a new book-like mod screen that scrolls
+  badly needs an entry there. The rates are fixed in code (no config slider).
 - The button guide integration is a third hook into Controlify internals (`GuideInstanceImpl.update`,
   `PrecomputedLines`); recheck it with the other two when Controlify updates.
 - Steam Input chords on top of these work but can double up.

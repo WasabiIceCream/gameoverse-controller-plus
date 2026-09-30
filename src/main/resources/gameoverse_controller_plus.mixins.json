@@ -11,7 +11,8 @@
     "InputComponentMixin",
     "KeyMappingAccessor",
     "KeyboardHandlerInvoker",
-    "MouseHandlerInvoker"
+    "MouseHandlerInvoker",
+    "VirtualMouseHandlerMixin"
   ],
   "injectors": {
     "defaultRequire": 0
