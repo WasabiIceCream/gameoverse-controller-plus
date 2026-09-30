@@ -48,8 +48,7 @@ public final class ControllerPlusControlify implements ControlifyEntrypoint {
 
     @Override
     public void onControllersDiscovered(ControlifyApi api) {
-        if (HookStatus.maskHookChecked && !HookStatus.maskHookApplied) {
-            LOG.error("Gameoverse Controller Plus is inactive: its Controlify input hook did not apply (Controlify version changed?)");
-        }
+        // The input hook confirms itself on its first run (HookStatus.confirmMaskHook); a controller that is in use but
+        // never produces that log line means the hook didn't apply for this Controlify version.
     }
 }

@@ -23,11 +23,9 @@ public final class ControllerPlusMixinPlugin implements IMixinConfigPlugin {
     @Override
     public void postApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {
         if (mixinClassName.endsWith("InputComponentMixin")) {
-            boolean ok = callsHandler(targetClass, "gcp$maskBindingState");
-            HookStatus.maskHookApplied = ok;
+            // MixinExtras applies @WrapOperation after this callback, so the call isn't visible yet; the handler
+            // confirms itself on its first run instead (HookStatus.confirmMaskHook).
             HookStatus.maskHookChecked = true;
-            report(ok, targetClassName, "binding state mask (InputComponent.pushState)",
-                    "Gameoverse Controller Plus is DISABLED: advanced binds will not work until it is updated for this Controlify version.");
         } else if (mixinClassName.endsWith("InputBindingImplMixin")) {
             boolean ok = callsHandler(targetClass, "gcp$forceHeldBinding");
             HookStatus.forceHookApplied = ok;

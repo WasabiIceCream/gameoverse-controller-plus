@@ -32,6 +32,7 @@ abstract class InputComponentMixin {
                     target = "Ldev/isxander/controlify/api/bind/InputBinding;pushState(Ldev/isxander/controlify/controller/input/ControllerStateView;)V"),
             require = 0)
     private void gcp$maskBindingState(InputBinding binding, ControllerStateView state, Operation<Void> original) {
+        net.gameoverse.controllerplus.client.HookStatus.confirmMaskHook();
         if (state != gcp$lastRaw) {
             // A new push: each push builds a fresh deadzone view, so identity marks the first binding.
             gcp$lastRaw = state;
