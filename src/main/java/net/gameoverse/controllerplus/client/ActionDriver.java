@@ -17,7 +17,9 @@ import net.gameoverse.controllerplus.config.Defaults;
 import net.gameoverse.controllerplus.engine.Bind;
 import net.gameoverse.controllerplus.engine.TriggerEngine;
 import net.gameoverse.controllerplus.engine.TriggerType;
+import net.gameoverse.controllerplus.mixin.KeyMappingAccessor;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,17 +48,30 @@ final class ActionDriver {
     }
 
     private void handle(TriggerEngine.Event e, ControllerEntity controller) {
+        if (e.kind() == TriggerEngine.Kind.REPEAT) {
+            // A REPEAT-mode follow-up: the same as a press, without the rumble.
+            run(new TriggerEngine.Event(TriggerEngine.Kind.PRESS, e.bind()), controller, false);
+        } else {
+            run(e, controller, rumble);
+        }
+    }
+
+    private void run(TriggerEngine.Event e, ControllerEntity controller, boolean rumble) {
         Bind bind = e.bind();
+        if (Defaults.DROP_ONE.equals(bind.action())) {
+            if (e.kind() != TriggerEngine.Kind.STOP) {
+                rumble(e, bind, controller, rumble);
+                dropOne();
+            }
+            return;
+        }
         if (Defaults.SCROLL_UP.equals(bind.action()) || Defaults.SCROLL_DOWN.equals(bind.action())) {
             // Every press or repeat is one wheel notch; Hold While and Toggle just step once on start.
             if (e.kind() != TriggerEngine.Kind.STOP) Scoping.scrollStep(Defaults.SCROLL_UP.equals(bind.action()) ? 1 : -1);
             return;
         }
         int spellSlot = spellSlot(bind.action());
-        if (e.kind() != TriggerEngine.Kind.STOP && rumble && controller != null
-                && (bind.type() == TriggerType.HOLD || bind.type() == TriggerType.MULTI_TAP)) {
-            ControlifyApi.get().playRumbleEffect(RumbleSource.INTERACTION, BasicRumbleEffect.constant(0.25f, 0.1f, 3));
-        }
+        rumble(e, bind, controller, rumble);
         if (spellSlot > 0) {
             if (!spellEngine) return;
             switch (e.kind()) {
@@ -107,6 +122,24 @@ final class ActionDriver {
                 if (was != null) Hooks.unforce(was);
             }
         }
+    }
+
+    private static void rumble(TriggerEngine.Event e, Bind bind, ControllerEntity controller, boolean rumble) {
+        if (e.kind() != TriggerEngine.Kind.STOP && rumble && controller != null
+                && (bind.type() == TriggerType.HOLD || bind.type() == TriggerType.MULTI_TAP)) {
+            ControlifyApi.get().playRumbleEffect(RumbleSource.INTERACTION, BasicRumbleEffect.constant(0.25f, 0.1f, 3));
+        }
+    }
+
+    /**
+     * One click of vanilla's Drop key: Minecraft's own key handling then drops one item from the held
+     * stack ({@code while (keyDrop.consumeClick())}), exactly like a keyboard press of Q.
+     */
+    private static void dropOne() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.screen != null) return;
+        KeyMappingAccessor drop = (KeyMappingAccessor) mc.options.keyDrop;
+        drop.gcp$setClickCount(drop.gcp$getClickCount() + 1);
     }
 
     /** Once per client tick: keep held spell keys down, end short presses. */

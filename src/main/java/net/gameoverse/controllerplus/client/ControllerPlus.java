@@ -14,6 +14,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.gameoverse.controllerplus.config.BindEntry;
 import net.gameoverse.controllerplus.config.ControllerPlusConfig;
 import net.gameoverse.controllerplus.engine.Bind;
+import net.gameoverse.controllerplus.engine.GuidePlanner;
 import net.gameoverse.controllerplus.engine.TriggerEngine;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
@@ -32,6 +33,7 @@ public final class ControllerPlus {
     private final Map<String, Identifier> ids = new HashMap<>();
     private ControllerPlusConfig config = new ControllerPlusConfig();
     private List<Bind> compiled = List.of();
+    private GuidePlanner planner = new GuidePlanner(List.of());
     private int modifierTapTicks = 6;
 
     private static final class Slot {
@@ -74,9 +76,16 @@ public final class ControllerPlus {
             if (b != null) binds.add(b);
         }
         compiled = List.copyOf(binds);
+        planner = new GuidePlanner(compiled);
+        ButtonGuide.invalidate();
         modifierTapTicks = BindEntry.msToTicks(config.modifierTapMs);
         driver.rumble = config.rumble;
         LOG.info("Loaded {} advanced controller binds ({})", compiled.size(), config.customized ? "customized" : "defaults");
+    }
+
+    /** The button guide planner for the binds in effect, or null while advanced binds are off. */
+    GuidePlanner guidePlanner() {
+        return config.enabled && !compiled.isEmpty() ? planner : null;
     }
 
     /** Called from the InputComponent mixin once per state push, before any binding reads it. */
@@ -132,7 +141,7 @@ public final class ControllerPlus {
         driver.releaseAll();
     }
 
-    private Identifier id(String s) {
+    Identifier id(String s) {
         if (ids.containsKey(s)) return ids.get(s);
         Identifier parsed = Identifier.tryParse(s);
         ids.put(s, parsed);

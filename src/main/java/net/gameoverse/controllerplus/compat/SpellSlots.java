@@ -3,7 +3,11 @@ package net.gameoverse.controllerplus.compat;
 import java.util.List;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
+import net.spell_engine.client.gui.SpellTooltip;
 import net.spell_engine.client.input.SpellHotbar;
+import net.spell_engine.internals.casting.SpellCast;
 
 /**
  * Spell Engine bridge. Only loaded when spell_engine is present.
@@ -24,10 +28,27 @@ public final class SpellSlots {
 
     /** The KeyMapping that casts spell slot {@code n} (1-based) right now, or null. */
     public static KeyMapping resolve(int n) {
+        SpellHotbar.Slot slot = slot(n);
+        return slot == null ? null : slot.getKeyBinding(Minecraft.getInstance().options);
+    }
+
+    /** The name of what spell slot {@code n} (1-based) casts right now, or null if the slot is empty. */
+    public static Component name(int n) {
+        SpellHotbar.Slot slot = slot(n);
+        if (slot == null) return null;
+        SpellCast.Option option = slot.option();
+        if (option != null && option.spell() != null && option.spell().unwrapKey().isPresent()) {
+            return Component.translatable(SpellTooltip.spellTranslationKey(option.id()));
+        }
+        ItemStack stack = slot.itemStack();
+        return stack != null && !stack.isEmpty() ? stack.getHoverName() : null;
+    }
+
+    private static SpellHotbar.Slot slot(int n) {
         SpellHotbar bar = SpellHotbar.INSTANCE;
         if (bar == null || bar.structuredSlots == null || n < 1) return null;
         List<SpellHotbar.Slot> other = bar.structuredSlots.other();
         if (other == null || n > other.size()) return null;
-        return other.get(n - 1).getKeyBinding(Minecraft.getInstance().options);
+        return other.get(n - 1);
     }
 }

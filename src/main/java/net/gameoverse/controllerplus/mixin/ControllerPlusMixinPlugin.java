@@ -27,11 +27,21 @@ public final class ControllerPlusMixinPlugin implements IMixinConfigPlugin {
             // confirms itself on its first run instead (HookStatus.confirmMaskHook).
             HookStatus.maskHookChecked = true;
         } else if (mixinClassName.endsWith("InputBindingImplMixin")) {
-            boolean ok = callsHandler(targetClass, "gcp$forceHeldBinding");
+            boolean ok = callsHandler(targetClass, "pushState", "gcp$forceHeldBinding");
             HookStatus.forceHookApplied = ok;
             HookStatus.forceHookChecked = true;
             report(ok, targetClassName, "held binding (InputBindingImpl.pushState)",
                     "Hold-while and toggle actions on Controlify bindings fall back to short presses.");
+        } else if (mixinClassName.endsWith("GuideInstanceImplMixin")) {
+            boolean filter = callsHandler(targetClass, "update", "gcp$filterGuideRules");
+            boolean append = callsHandler(targetClass, "update", "gcp$appendGuideLines");
+            if (filter && append) {
+                LOG.info("Controlify hook applied: in-game button guide (GuideInstanceImpl.update)");
+            } else {
+                // Not worth the boxed error: only the guide hints are lost, every bind still works.
+                LOG.warn("Controlify hook NOT applied: in-game button guide (filter {}, lines {}); the button guide "
+                        + "shows Controlify's own entries only. Controlify's GuideInstanceImpl.update changed.", filter, append);
+            }
         }
     }
 
@@ -46,9 +56,9 @@ public final class ControllerPlusMixinPlugin implements IMixinConfigPlugin {
         }
     }
 
-    private static boolean callsHandler(ClassNode cls, String handlerName) {
+    private static boolean callsHandler(ClassNode cls, String method, String handlerName) {
         for (MethodNode m : cls.methods) {
-            if (!m.name.equals("pushState")) continue;
+            if (!m.name.equals(method)) continue;
             for (AbstractInsnNode insn : m.instructions) {
                 if (insn instanceof MethodInsnNode call && call.name.contains(handlerName)) return true;
             }

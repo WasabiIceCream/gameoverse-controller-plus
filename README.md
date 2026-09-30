@@ -21,8 +21,10 @@ list in the config screen.
 | LB + RB together (either order) | Skill Forest (`key.puffish_skills.open`) | press |
 | hold Back 450 ms | Gameoverse Guide (`key.oracle_index.open`) | press |
 | hold Y 400 ms | World Tier select (`key.apotheosis.open_world_tier_select`) | press |
-| tap D-up | spyglass (`key.spyglass-improvements.use`) | toggle |
-| hold D-up 250 ms | Ok Zoomer zoom (`key.ok_zoomer.zoom`) | hold while pressed |
+| tap D-up | MapStitch world map (`mapstitch.key.open_world_map`) | press |
+| hold D-up 250 ms | spyglass (`key.spyglass-improvements.use`) | toggle |
+| tap D-down | Crawl (`key.crawl`) | toggle |
+| hold D-down 250 ms | drop one item from the held stack, then one more every 150 ms while held | repeat |
 | tap D-left | Hotbar Slot Cycling cycle left | press |
 | hold D-left 250 ms | pick block | press |
 | RB while scoped | scroll up one notch (zoom in), repeats after 300 ms every 100 ms | press |
@@ -34,16 +36,28 @@ scoped, LB and RB only zoom: no hotbar change, no spell layers, no LB+RB chord. 
 held when scoping starts does nothing until it is pressed again; when scoping ends the repeats stop
 at once and a still-held shoulder stays inert until released.
 
+Controlify's own D-down binding (Drop Item, `controlify:drop`, from its default layout; our profile
+doesn't rebind D-down) never fires in game: D-down has a tap bind, so it is held back like every
+other advanced-bound button.
+
 Unchanged: tapping LB/RB still moves the hotbar slot (on release, see below), tapping Back still
 changes perspective, tapping Y still opens the inventory. A, X and B alone are never delayed.
 
 Why these D-pad splits: our Controlify profile (`gameoverse-client-perf/config/controlify/profile-1.json`)
 put Ok Zoomer zoom, Accessorify's spyglass and Spyglass Improvements' spyglass all on D-up (chat was
 moved off it to the radial menu), and Hotbar Slot Cycling's cycle-left on D-left next to
-Controlify's pick block. Every one of them fired together. Now D-up's tap toggles the spyglass (look
-at the stars hands-free, tap again to stop) and holding it zooms for as long as it's held; Accessorify's
-duplicate spyglass key is no longer reachable from D-up in game. On D-left, the pack's hotbar-row
-cycling (used more often) is the tap and pick block the hold. Spell slot 9 has no default
+Controlify's pick block. Every one of them fired together. Since 1.0.2 (user's design) D-up's tap
+opens the world map and holding it toggles the spyglass (look at the stars hands-free, hold again to
+stop); Accessorify's duplicate spyglass key and the profile's Ok Zoomer binding are no longer reachable
+from D-up in game. D-down's tap toggles crawling and holding it drops items one at a time. On D-left,
+the pack's hotbar-row cycling (used more often) is the tap and pick block the hold.
+
+Crawl's `key.crawl` is a `ToggleKeyMapping` whose toggle option (`toggleCrawl`) only applies to
+keyboard input: under controller input Controlify treats it as a hold key (it only passes a toggle
+condition for sneak and sprint). So the tap bind uses Toggle mode, which holds the key down until the
+next tap. Opening any screen releases it (vanilla releases every key when a screen opens, and the
+engine ends toggles then), so crawling stops when you open your inventory. Bits and Balance has its
+own crawl key (`key.bitsandbalance.crawl`), which isn't used here. Spell slot 9 has no default
 controller input (LB+RB went to the Skill Forest instead).
 
 "Spell slot N" is the N-th spell on Spell Engine's spell bar that is **not** on the use key. With
@@ -78,8 +92,49 @@ casts the next one.
   for other mods' keys, which Controlify generates automatically) run by `InputBinding.fakePress()`,
   or held by forcing the binding's state. `gameoverse_controller_plus:spell_slot_N` holds down the
   KeyMapping Spell Engine resolved for that slot (see below). `gameoverse_controller_plus:scroll_up`
-  / `scroll_down` is one mouse wheel notch (see below).
+  / `scroll_down` is one mouse wheel notch (see below). `gameoverse_controller_plus:drop_one` adds
+  one click to vanilla's Drop key (`key.drop`, through a `KeyMapping.clickCount` accessor), so
+  Minecraft's own key handling drops one item exactly as a press of Q does (never the whole stack).
+- **Repeat mode** (1.0.2): a press when the trigger fires, then another every Tap Window (the bind's
+  `windowMs`) for as long as the trigger's button stays held; ends on release or when a screen opens.
+  Follow-up presses don't rumble.
 - **Feedback**: a short rumble when a hold or multi-tap bind fires (toggle in the config).
+
+## Controlify's in-game button guide
+
+With Controlify's "Show in-game button guide" on, the guide also shows the advanced binds, picked
+for the moment (`engine/GuidePlanner`, unit tested; labels and glyphs in `client/ButtonGuide`):
+
+- **Scoped**: `[RB] Zoom in`, `[LB] Zoom out`, plus the other buttons' hints.
+- **LB (or RB) held** for 200 ms (so a hotbar tap doesn't flash it): only that layer, each face button
+  with the name of the spell it casts now (Spell Engine's spell bar; empty slots are skipped), and
+  `[RB] Skill Forest` for the chord. Controlify's own A/X/Y/B entries hide meanwhile.
+- **Otherwise**: `[LB] Hold: Spells` / `[RB] Hold: More spells` when that layer has a spell right now,
+  then the tap/hold/chord binds whose action is worth a line at the guide's verbosity (Controlify's
+  own setting):
+  - Minimal: only things toggled on (`[D-down] Stop Crawl`, `[D-up] Hold: Stop Spyglass`).
+  - Reduced (our profile's default): also the spell hints, `[LB+RB] Skill Forest`,
+    `[Back] Hold: Guide`, `[Y] Hold: World Tier`, `Hold: Drop [D-down]` while holding an item, and
+    `Hold: Spyglass [D-up]` while carrying a spyglass.
+  - Full: every bind (`Map`, `Crawl`, `Hotbar row`, `Pick block` too).
+  D-pad hints sit in the right column (next to Controlify's use/drop lines), the rest on the left.
+- Controlify's own entry for a button whose tap we replaced (Drop on D-down) is hidden.
+
+Labels come from our lang file (`gameoverse_controller_plus.guide.action.<action id with : as .>`),
+falling back to the Controlify binding's name, so customized binds still get a line. "Hold: ",
+"2x: " and "Stop " mark the trigger; chords show two glyphs joined by "+" (Controlify's input font
+per controller type, built with its `InputFontMapper`, the same way its own glyphs are made).
+
+Why a mixin and not Controlify's API: Controlify 3.5's guide is data-driven (`contextual/guide/*.json`
+rules: one binding's glyph plus fixed text, first matching rule per binding wins, resource packs
+stack), and the public API (`ContextualDomain.registerContributor`) can only add facts. A rule can't
+show live spell names, two glyphs, or hide another mod's rule, and the order of our rules against
+Controlify's own would depend on resource pack order. So `GuideInstanceImplMixin` hooks
+`GuideInstanceImpl.update` twice, in-game domain only (`controlify:in_game`; screen guides untouched):
+a `@ModifyVariable` on the stored list of winning rules (removes the overridden ones) and an
+`@Inject` at TAIL that appends our lines to its left/right `PrecomputedLines`. Both `require = 0`;
+the mixin plugin logs `Controlify hook applied: in-game button guide` or a warning, and any
+exception in our guide code is logged once and the guide falls back to Controlify's own entries.
 
 ### The two Controlify hooks (and the version pin)
 
@@ -98,7 +153,8 @@ stop a button's normal binding from firing. Two mixins do that:
 Both use `require = 0`, and a mixin config plugin checks after transformation that each handler
 really is called from `pushState`. If Controlify changes these methods the log shows a boxed
 `Controlify hook NOT applied` error and the mod goes inactive (or hold-while falls back to short
-presses) instead of crashing. On a healthy start the log has two `Controlify hook applied` lines.
+presses) instead of crashing. On a healthy start the log has three `Controlify hook applied` lines (the
+input mask one only once a controller is in use).
 `fabric.mod.json` pins `controlify` to `>=3.5.3 <3.6`.
 
 **When Controlify updates**: recheck both targets (`javap -p -c` on `InputComponent.pushState` and
@@ -159,8 +215,11 @@ AutoModpack's manifest picks it up) and the Working test instance's `mods/`.
 - Spell layers don't cast while sneaking: Spell Engine's `sneakingByPassSpellHotbar` is on, and RS is
   toggle sneak.
 - Buttons only; triggers (LT/RT) and stick directions can't be used in advanced binds.
-- No on-screen hint showing what a layer does yet, and no "press the buttons" capture widget.
+- No "press the buttons" capture widget in the config screen.
+- The button guide integration is a third hook into Controlify internals (`GuideInstanceImpl.update`,
+  `PrecomputedLines`); recheck it with the other two when Controlify updates.
 - Steam Input chords on top of these work but can double up.
-- Ok Zoomer is not in the pack (neither mod set) as of 1.0.1, so its detection (zoom key held) and
-  its scroll handling are unverified; the D-up hold bind to `key.ok_zoomer.zoom` does nothing
-  until it is installed. Ok Zoomer's toggle zoom mode wouldn't count as scoped.
+- Ok Zoomer is not in the pack (neither mod set); 1.0.2 dropped its D-up bind. `Scoping` still
+  counts its zoom key held as scoped: `KeyMapping.get("key.ok_zoomer.zoom")` is null without the mod,
+  so the check is inert and was kept for the day it's installed (unverified; its toggle zoom mode
+  wouldn't count). The profile's own `controlify_modded:key.ok_zoomer.zoom` entry is likewise inert.

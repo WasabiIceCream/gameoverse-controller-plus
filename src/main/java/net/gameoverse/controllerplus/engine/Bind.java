@@ -10,8 +10,8 @@ package net.gameoverse.controllerplus.engine;
  * @param other       LAYER: the modifier; CHORD: the second button; otherwise unused
  * @param ticks       HOLD: ticks the button must be held; SCOPED: ticks before the first repeat
  * @param count       MULTI_TAP: number of presses
- * @param windowTicks MULTI_TAP: ticks allowed between a release and the next press; SCOPED: ticks
- *                    between repeats
+ * @param windowTicks MULTI_TAP: ticks allowed between a release and the next press; SCOPED, and any
+ *                    REPEAT-mode bind: ticks between repeats
  * @param action      what to run (a Controlify binding id or one of this mod's action ids)
  * @param mode        how to run it
  */
@@ -24,6 +24,11 @@ public record Bind(int id, TriggerType type, String button, String other, int ti
 
     public static Bind hold(int id, String button, int ticks, String action, ActionMode mode) {
         return new Bind(id, TriggerType.HOLD, button, null, Math.max(1, ticks), 0, 0, action, mode);
+    }
+
+    /** Same bind with another repeat interval (REPEAT mode). */
+    public Bind withWindowTicks(int newWindowTicks) {
+        return new Bind(id, type, button, other, ticks, count, Math.max(1, newWindowTicks), action, mode);
     }
 
     public static Bind multiTap(int id, String button, int count, int windowTicks, String action, ActionMode mode) {

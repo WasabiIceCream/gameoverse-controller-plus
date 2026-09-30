@@ -32,9 +32,12 @@ import java.util.function.Predicate;
  */
 public final class TriggerEngine {
 
-    public enum Kind { PRESS, START, STOP }
+    public enum Kind { PRESS, START, STOP, REPEAT }
 
-    /** An action to run. START/STOP bracket a held action (HOLD_WHILE, or TOGGLE on/off). */
+    /**
+     * An action to run. START/STOP bracket a held action (HOLD_WHILE, or TOGGLE on/off). REPEAT is a
+     * REPEAT-mode bind's follow-up press while its button stays held (run like PRESS, no rumble).
+     */
     public record Event(Kind kind, Bind bind) {
     }
 
@@ -86,6 +89,17 @@ public final class TriggerEngine {
         boolean captured;
         int scopedT;
         final List<Bind> heldActions = new ArrayList<>();
+        /** REPEAT-mode binds pressing again while this button stays held. */
+        final List<Repeat> repeats = new ArrayList<>();
+    }
+
+    private static final class Repeat {
+        final Bind bind;
+        int t;
+
+        Repeat(Bind bind) {
+            this.bind = bind;
+        }
     }
 
     private final Map<String, Plan> plans = new LinkedHashMap<>();
@@ -145,6 +159,11 @@ public final class TriggerEngine {
 
     private State state(String button) {
         return states.computeIfAbsent(button, k -> new State());
+    }
+
+    /** True while the player is scoped as of the last tick (and the engine was active). */
+    public boolean scopedNow() {
+        return scopedNow;
     }
 
     /** Every button any bind refers to. */
@@ -208,6 +227,13 @@ public final class TriggerEngine {
             // 3. Held buttons: hold thresholds and timeouts.
             for (Map.Entry<String, State> e : states.entrySet()) {
                 State s = e.getValue();
+                if (!s.repeats.isEmpty() && s.now && !pressedThisTick.contains(e.getKey())) {
+                    for (Repeat r : s.repeats) {
+                        if (++r.t % Math.max(1, r.bind.windowTicks()) == 0) {
+                            events.add(new Event(Kind.REPEAT, r.bind));
+                        }
+                    }
+                }
                 if (s.phase == Phase.PRESSED && s.now && !pressedThisTick.contains(e.getKey())) {
                     s.t++;
                     onHeldTick(e.getKey(), s, events);
@@ -264,6 +290,7 @@ public final class TriggerEngine {
             events.add(new Event(Kind.STOP, held));
         }
         s.heldActions.clear();
+        s.repeats.clear();
         s.sticky = false;
         s.consumedAsLayer = false;
         s.captured = false;
@@ -388,7 +415,7 @@ public final class TriggerEngine {
     /** Auto-repeat of a captured button's PRESS-mode SCOPED binds. */
     private static void repeatTick(Plan p, State s, List<Event> events) {
         for (Bind bind : p.scoped) {
-            if (bind.mode() != ActionMode.PRESS) continue;
+            if (bind.mode() != ActionMode.PRESS && bind.mode() != ActionMode.REPEAT) continue;
             int since = s.scopedT - bind.ticks();
             if (since >= 0 && since % bind.windowTicks() == 0) {
                 events.add(new Event(Kind.PRESS, bind));
@@ -486,6 +513,12 @@ public final class TriggerEngine {
                         events.add(new Event(Kind.PRESS, bind));
                     }
                 }
+                case REPEAT -> {
+                    events.add(new Event(Kind.PRESS, bind));
+                    // SCOPED binds repeat through repeatTick with their own delay.
+                    State ts = tie == null || bind.type() == TriggerType.SCOPED ? null : states.get(tie);
+                    if (ts != null && ts.now) ts.repeats.add(new Repeat(bind));
+                }
                 case TOGGLE -> {
                     if (toggledOn.remove(bind.id())) {
                         events.add(new Event(Kind.STOP, bind));
@@ -510,6 +543,7 @@ public final class TriggerEngine {
             s.replayRemaining = 0;
             s.replayHigh = false;
             s.layerUsed = false;
+            s.repeats.clear();
         }
         for (Integer id : toggledOn) {
             events.add(new Event(Kind.STOP, bindsById.get(id)));
@@ -534,6 +568,7 @@ public final class TriggerEngine {
             s.captured = false;
             for (Bind held : s.heldActions) events.add(new Event(Kind.STOP, held));
             s.heldActions.clear();
+            s.repeats.clear();
         }
         return events;
     }

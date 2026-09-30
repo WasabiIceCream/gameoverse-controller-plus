@@ -2,6 +2,7 @@ package net.gameoverse.controllerplus.config;
 
 import static net.gameoverse.controllerplus.engine.ActionMode.HOLD_WHILE;
 import static net.gameoverse.controllerplus.engine.ActionMode.PRESS;
+import static net.gameoverse.controllerplus.engine.ActionMode.REPEAT;
 import static net.gameoverse.controllerplus.engine.ActionMode.TOGGLE;
 
 import java.util.ArrayList;
@@ -18,6 +19,8 @@ public final class Defaults {
     /** One mouse-wheel notch up / down, through Minecraft's own scroll handler (spyglass and zoom mods listen there). */
     public static final String SCROLL_UP = "gameoverse_controller_plus:scroll_up";
     public static final String SCROLL_DOWN = "gameoverse_controller_plus:scroll_down";
+    /** One click of vanilla's Drop key ({@code key.drop}): one item from the held stack. */
+    public static final String DROP_ONE = "gameoverse_controller_plus:drop_one";
 
     private Defaults() {
     }
@@ -44,11 +47,16 @@ public final class Defaults {
         // Hold Y: World Tier (tap keeps inventory).
         list.add(BindEntry.of(TriggerType.HOLD, BTN + "north", null, 400, 2, 250,
                 "controlify_modded:key.apotheosis.open_world_tier_select", PRESS));
-        // D-up: tap toggles the spyglass, hold zooms while held.
+        // D-up: tap opens the world map, hold toggles the spyglass (hold again to stop).
         list.add(BindEntry.of(TriggerType.TAP, BTN + "dpad_up", null, 0, 2, 250,
-                "controlify_modded:key.spyglass-improvements.use", TOGGLE));
+                "controlify_modded:mapstitch.key.open_world_map", PRESS));
         list.add(BindEntry.of(TriggerType.HOLD, BTN + "dpad_up", null, 250, 2, 250,
-                "controlify_modded:key.ok_zoomer.zoom", HOLD_WHILE));
+                "controlify_modded:key.spyglass-improvements.use", TOGGLE));
+        // D-down: tap toggles crawling (Crawl's key is a hold key under Controlify, so the toggle
+        // holds it down), hold drops one item, then one more every 150 ms while still held.
+        list.add(BindEntry.of(TriggerType.TAP, BTN + "dpad_down", null, 0, 2, 250,
+                "controlify_modded:key.crawl", TOGGLE));
+        list.add(BindEntry.of(TriggerType.HOLD, BTN + "dpad_down", null, 250, 2, 150, DROP_ONE, REPEAT));
         // D-left: tap cycles the hotbar row, hold picks the block.
         list.add(BindEntry.of(TriggerType.TAP, BTN + "dpad_left", null, 0, 2, 250,
                 "controlify_modded:key.hotbarslotcycling.cycle_left", PRESS));

@@ -605,4 +605,103 @@ class TriggerEngineTest {
         assertEquals(TriggerEngine.Kind.STOP, only(rig.tick().events()).kind());
         assertTrue(rig.release(RB).events().isEmpty());
     }
+
+    // ---- REPEAT / D-pad layout (1.0.2) ------------------------------------------------------
+
+    /** The shipped D-down: tap toggles crawl, hold drops one item then one every 3 ticks. */
+    static Rig dpadDownRig() {
+        return new Rig(6,
+                Bind.tap(1, DOWN, "crawl", ActionMode.TOGGLE),
+                Bind.hold(2, DOWN, 5, "drop_one", ActionMode.REPEAT).withWindowTicks(3));
+    }
+
+    @Test
+    void dpadDownTapTogglesCrawlAndNeverReachesDrop() {
+        Rig rig = dpadDownRig();
+        TriggerEngine.Result r = rig.press(DOWN);
+        assertTrue(r.masked().contains(DOWN), "Controlify's own drop never sees the press");
+        assertTrue(r.events().isEmpty());
+        r = rig.release(DOWN);
+        TriggerEngine.Event e = only(r.events());
+        assertEquals(TriggerEngine.Kind.START, e.kind());
+        assertEquals("crawl", e.bind().action());
+        assertTrue(r.replay().isEmpty(), "no drop tap replayed");
+        assertTrue(rig.idle(20).isEmpty(), "crawl stays on after release");
+        rig.press(DOWN);
+        e = only(rig.release(DOWN).events());
+        assertEquals(TriggerEngine.Kind.STOP, e.kind());
+    }
+
+    @Test
+    void dpadDownHoldDropsThenRepeatsUntilReleased() {
+        Rig rig = dpadDownRig();
+        rig.press(DOWN);
+        assertTrue(rig.idle(4).isEmpty(), "nothing before the hold time");
+        TriggerEngine.Event e = only(rig.tick().events());
+        assertEquals(TriggerEngine.Kind.PRESS, e.kind(), "first drop at the hold threshold");
+        assertEquals("drop_one", e.bind().action());
+        assertTrue(rig.idle(2).isEmpty());
+        e = only(rig.tick().events());
+        assertEquals(TriggerEngine.Kind.REPEAT, e.kind(), "then one every 3 ticks");
+        List<TriggerEngine.Event> more = rig.idle(9);
+        assertEquals(3, more.size());
+        assertTrue(more.stream().allMatch(x -> x.kind() == TriggerEngine.Kind.REPEAT));
+        TriggerEngine.Result r = rig.release(DOWN);
+        assertTrue(r.events().isEmpty(), "release after a hold: no crawl toggle");
+        assertTrue(r.replay().isEmpty());
+        assertTrue(rig.idle(10).isEmpty(), "repeats stop on release");
+    }
+
+    @Test
+    void repeatStopsWhenAScreenOpens() {
+        Rig rig = dpadDownRig();
+        rig.press(DOWN);
+        rig.idle(5);
+        rig.active = false;
+        assertTrue(rig.idle(10).isEmpty());
+        rig.active = true;
+        assertTrue(rig.idle(10).isEmpty(), "still held after the screen closed: no more drops until pressed again");
+        rig.release(DOWN);
+    }
+
+    @Test
+    void repeatOnTapActsAsPress() {
+        Rig rig = new Rig(6,
+                Bind.tap(1, UP, "map", ActionMode.REPEAT),
+                Bind.hold(2, UP, 5, "spyglass", ActionMode.TOGGLE));
+        rig.press(UP);
+        TriggerEngine.Event e = only(rig.release(UP).events());
+        assertEquals(TriggerEngine.Kind.PRESS, e.kind());
+        assertTrue(rig.idle(10).isEmpty());
+    }
+
+    @Test
+    void dpadUpTapOpensMapHoldTogglesSpyglass() {
+        Rig rig = new Rig(6,
+                Bind.tap(1, UP, "map", ActionMode.PRESS),
+                Bind.hold(2, UP, 5, "spyglass", ActionMode.TOGGLE));
+        rig.press(UP);
+        TriggerEngine.Event e = only(rig.release(UP).events());
+        assertEquals("map", e.bind().action());
+        rig.press(UP);
+        e = only(rig.idle(5));
+        assertEquals(TriggerEngine.Kind.START, e.kind());
+        assertEquals("spyglass", e.bind().action());
+        assertTrue(rig.release(UP).events().isEmpty(), "toggle stays on after release");
+        rig.press(UP);
+        e = only(rig.idle(5));
+        assertEquals(TriggerEngine.Kind.STOP, e.kind(), "second hold turns it off");
+        rig.release(UP);
+    }
+
+    @Test
+    void layerRepeatUsesItsOwnInterval() {
+        Rig rig = new Rig(6, Bind.layer(1, LB, A, "act", ActionMode.REPEAT).withWindowTicks(2));
+        rig.press(LB);
+        assertEquals(TriggerEngine.Kind.PRESS, only(rig.press(A).events()).kind());
+        assertTrue(rig.tick().events().isEmpty());
+        assertEquals(TriggerEngine.Kind.REPEAT, only(rig.tick().events()).kind());
+        rig.release(A);
+        assertTrue(rig.idle(5).isEmpty());
+    }
 }

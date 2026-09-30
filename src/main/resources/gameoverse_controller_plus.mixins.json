@@ -5,8 +5,10 @@
   "plugin": "net.gameoverse.controllerplus.mixin.ControllerPlusMixinPlugin",
   "compatibilityLevel": "JAVA_25",
   "client": [
+    "GuideInstanceImplMixin",
     "InputBindingImplMixin",
     "InputComponentMixin",
+    "KeyMappingAccessor",
     "MouseHandlerInvoker"
   ],
   "injectors": {

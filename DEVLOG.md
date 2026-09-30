@@ -1,5 +1,74 @@
 # DEVLOG
 
+## 2026-09-30: 1.0.2, new D-pad layout and Controlify button guide hints
+
+User's design: D-up tap = world map, hold = spyglass toggle (was the tap); D-down tap = crawl toggle,
+hold = drop one item then keep dropping one at a time; D-left unchanged; Ok Zoomer bind removed. And
+the advanced binds in Controlify's in-game button guide.
+
+Checked first:
+
+- Controlify 3.5.3 default layout: D-down = `controlify:drop` (`InGameInputHandler`: one item on
+  press, then after 20 ticks one per tick). Our `profile-1.json` doesn't rebind D-down (it has
+  `key.crawl` and the world map only in the radial menu). D-down now has a tap bind, so the engine
+  holds it back and Controlify's drop never fires in game.
+- `key.crawl` is Crawl 0.15.0's (`CrawlClient.key`, a `ToggleKeyMapping` on its `toggleCrawl`
+  option). Controlify's `ToggleKeyMappingMixin` replaces the toggle condition under controller input
+  with the one passed at registration, which only sneak/sprint have, so for a controller it's a hold
+  key: the tap bind uses Toggle mode (hold the binding down until the next tap). Bits and Balance also
+  has `key.bitsandbalance.crawl`; not used.
+- Drop: vanilla handles `while (options.keyDrop.consumeClick()) player.drop(ctrl)`. Controlify's
+  `fakePress` needs 4 pushes per press (states 0-3), too slow for 150 ms repeats, so the new
+  `gameoverse_controller_plus:drop_one` action increments `keyDrop`'s `clickCount` (accessor mixin):
+  one vanilla single-item drop per event, any interval.
+- Ok Zoomer: still not installed; its bind is gone from the defaults. `Scoping`'s zoom-key check is
+  inert without the mod (`KeyMapping.get` returns null) and kept.
+
+Engine: `ActionMode.REPEAT` (press on fire, then `Kind.REPEAT` every `windowTicks` while the tie
+button stays held; cleared on release, screen open and hard reset; acts as PRESS when fired on
+release; SCOPED binds keep their own repeat path). `BindEntry` compiles REPEAT binds with Tap Window as
+the interval. Driver: REPEAT events run as presses without rumble.
+
+Button guide: Controlify 3.5's guide (`GuideInstanceImpl.update`, source read at the 3.5.3 tag) is
+data-driven: `assets/<ns>/contextual/guide/in_game.json` rules (`for` binding, `where` left/right,
+`if` fact predicate, `then` text), first matching rule per (binding, side) wins, packs stack
+highest-priority first. The public API only adds facts (`ContextualDomainRegistry.inGame()
+.registerContributor`). Rules can't carry live spell names or two glyphs, and can't remove
+Controlify's Drop rule, so `GuideInstanceImplMixin`: `@ModifyVariable` at the STORE of the winning
+rule list (the method's only `List` local) filters rules whose binding is bound to a single button
+our binds override right now; `@Inject` TAIL appends our lines to `leftGuides`/`rightGuides`
+(`PrecomputedLines.Builder` is public) with Controlify's own layout maths. Glyphs:
+`Controlify.instance().inputFontMapper().getComponentFromInputs(controllerType namespace, [input])`
+per button; its own multi-input join puts a `+` into the bitmap controller font, which has no `+`
+glyph, so chords join single glyphs with a plain-font "+". Spell names:
+`SpellHotbar.structuredSlots.other().get(n).option().id()` through `SpellTooltip.spellTranslationKey`.
+What to show is `engine/GuidePlanner` (pure, 8 tests): scoped, layer held (200 ms delay), otherwise
+summaries and per-action levels against Controlify's verbosity (see README).
+
+Tests: 52 (6 new engine tests for REPEAT and the D-pad layout, 8 planner tests). Dev-client smoke
+test (temporary `runClient` with Controlify and YACL on the runtime classpath, a self-test that
+loaded `GuideInstanceImpl`, `InputBindingImpl` and `InputComponent`, then exited; reverted before
+building the release jar): `Controlify hook applied: in-game button guide (GuideInstanceImpl.update)`
+and `held binding`, no mixin errors, `Loaded 19 advanced controller binds (defaults)`.
+
+In-game test script (1.0.2):
+1. Log: `Controlify hook applied: in-game button guide` and `held binding`, then the input mask line
+   once the controller is used; `Loaded 19 advanced controller binds (defaults)`.
+2. Tap D-up: world map opens. Hold D-up ~0.3 s: spyglass view (rumble); RB/LB zoom; hold D-up again:
+   spyglass off. Tapping D-up never toggles the spyglass.
+3. Tap D-down: crawling; tap again: standing. Holding an item stack, hold D-down: one item drops at
+   ~0.25 s, then one about every 0.15 s until released; release after a short press never drops.
+4. D-left: tap cycles the hotbar row, hold picks the block (unchanged).
+5. Controlify settings > the controller > "Show in-game button guide" on. With a spell weapon: left
+   column has `[LB] Hold: Spells` (and `[RB] Hold: More spells` with over 4 spells), `[LB+RB] Skill
+   Forest`, `[Back] Hold: Guide`, `[Y] Hold: World Tier`; right column `Hold: Drop [D-down]` while
+   holding an item (Controlify's own Drop line gone), `Hold: Spyglass [D-up]` with a spyglass.
+6. Hold LB: after a moment the list shows `[A] <spell name>`, `[X] ...` per filled slot and
+   `[RB] Skill Forest`; Controlify's `[A] Jump` is hidden. Same for RB. Quick LB taps don't flash it.
+7. Look through the spyglass: `[RB] Zoom in`, `[LB] Zoom out`. Crawl (tap D-down): with verbosity
+   Minimal the guide still shows `[D-down] Stop Crawl`. Verbosity Full adds Map, Crawl, Hotbar row,
+   Pick block.
+
 ## 2026-09-30: 1.0.1, zoom with LB/RB while scoped
 
 User-approved design: while scoped, RB = one scroll-up step (zoom in), LB = one scroll-down step
