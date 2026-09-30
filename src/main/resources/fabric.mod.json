@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "id": "gameoverse_controller_plus",
+  "version": "${version}",
+
+  "name": "Gameoverse Controller Plus",
+  "description": "Hold, multi-tap, chord and modifier-layer controller binds on top of Controlify: spell hotbar on LB/RB layers, tap/hold splits for overloaded buttons.",
+  "authors": [
+    "WasabiIceCream"
+  ],
+
+  "license": "MIT",
+
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "net.gameoverse.controllerplus.client.ControllerPlusClient"
+    ],
+    "controlify": [
+      "net.gameoverse.controllerplus.client.ControllerPlusControlify"
+    ],
+    "modmenu": [
+      "net.gameoverse.controllerplus.client.ModMenuIntegration"
+    ]
+  },
+  "mixins": [
+    "gameoverse_controller_plus.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.5",
+    "fabric-api": "*",
+    "minecraft": ">=26.1 <26.2",
+    "java": ">=25",
+    "controlify": ">=3.5.3 <3.6",
+    "yet_another_config_lib_v3": ">=3.9"
+  },
+  "suggests": {
+    "spell_engine": "*",
+    "modmenu": "*"
+  }
+}
