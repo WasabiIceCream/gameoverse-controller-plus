@@ -15,6 +15,9 @@ import net.gameoverse.controllerplus.engine.TriggerType;
 public final class Defaults {
     public static final String BTN = "controlify:button/";
     public static final String SPELL_SLOT = "gameoverse_controller_plus:spell_slot_";
+    /** One mouse-wheel notch up / down, through Minecraft's own scroll handler (spyglass and zoom mods listen there). */
+    public static final String SCROLL_UP = "gameoverse_controller_plus:scroll_up";
+    public static final String SCROLL_DOWN = "gameoverse_controller_plus:scroll_down";
 
     private Defaults() {
     }
@@ -51,6 +54,10 @@ public final class Defaults {
                 "controlify_modded:key.hotbarslotcycling.cycle_left", PRESS));
         list.add(BindEntry.of(TriggerType.HOLD, BTN + "dpad_left", null, 250, 2, 250,
                 "controlify:pick_block", PRESS));
+        // While scoped (spyglass, Spyglass Improvements, Ok Zoomer): RB zooms in, LB zooms out, one
+        // wheel notch per press, repeating after 300 ms every 100 ms. LB/RB do nothing else then.
+        list.add(BindEntry.of(TriggerType.SCOPED, BTN + "right_shoulder", null, 300, 2, 100, SCROLL_UP, PRESS));
+        list.add(BindEntry.of(TriggerType.SCOPED, BTN + "left_shoulder", null, 300, 2, 100, SCROLL_DOWN, PRESS));
         return list;
     }
 }

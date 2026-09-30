@@ -23,6 +23,11 @@ import java.util.function.Predicate;
  *       engine is deactivated or the modifier is released first.</li>
  *   <li>When a press resolves to a plain tap and the button has no TAP bind, the tap is replayed to
  *       the normal bindings as one pressed tick followed by one released tick.</li>
+ *   <li>While the player is scoped, a button with a SCOPED bind is captured: a press fires only its
+ *       SCOPED binds (repeating while held) and is held back from everything else, including layers
+ *       and chords it would take part in. Scoping starting while such a button is already down
+ *       cancels that press's pending tap or layer; scoping ending stops the repeats at once, and a
+ *       captured button stays held back until released.</li>
  * </ul>
  */
 public final class TriggerEngine {
@@ -48,6 +53,7 @@ public final class TriggerEngine {
         final List<Bind> holds = new ArrayList<>();
         final List<Bind> multiTaps = new ArrayList<>();
         final Map<String, List<Bind>> layers = new LinkedHashMap<>();
+        final List<Bind> scoped = new ArrayList<>();
         boolean modifier;
         int holdTicks = Integer.MAX_VALUE;
         int maxCount;
@@ -55,6 +61,11 @@ public final class TriggerEngine {
 
         boolean tapOnly() {
             return holds.isEmpty() && multiTaps.isEmpty() && !modifier;
+        }
+
+        /** False for a button whose only binds are SCOPED: outside a scope it is left alone. */
+        boolean hasNormal() {
+            return !taps.isEmpty() || !holds.isEmpty() || !multiTaps.isEmpty() || modifier;
         }
     }
 
@@ -71,6 +82,9 @@ public final class TriggerEngine {
         long pressOrder;
         int replayRemaining;
         boolean replayHigh;
+        /** Pressed while scoped: runs its SCOPED binds only. */
+        boolean captured;
+        int scopedT;
         final List<Bind> heldActions = new ArrayList<>();
     }
 
@@ -80,6 +94,7 @@ public final class TriggerEngine {
     private final Map<Integer, Bind> bindsById = new LinkedHashMap<>();
     private final int modifierTapTicks;
     private boolean wasActive;
+    private boolean scopedNow;
     private long pressCounter;
 
     /**
@@ -110,6 +125,7 @@ public final class TriggerEngine {
                     m.layers.computeIfAbsent(bind.button(), k -> new ArrayList<>()).add(bind);
                     state(bind.button());
                 }
+                case SCOPED -> plan(bind.button()).scoped.add(bind);
                 case CHORD -> {
                     Plan a = plan(bind.button());
                     Plan b = plan(bind.other());
@@ -145,11 +161,26 @@ public final class TriggerEngine {
      *                 through; buttons already held back stay held back until released.
      */
     public Result tick(Predicate<String> physical, boolean active) {
+        return tick(physical, active, false);
+    }
+
+    /**
+     * @param scoped true while the player looks through a spyglass or zoom; SCOPED binds only work
+     *               then (and only while {@code active})
+     */
+    public Result tick(Predicate<String> physical, boolean active, boolean scoped) {
         List<Event> events = new ArrayList<>();
         if (!active && wasActive) {
             softDeactivate(events);
         }
         wasActive = active;
+        boolean nowScoped = active && scoped;
+        if (nowScoped && !scopedNow) {
+            enterScope();
+        } else if (!nowScoped && scopedNow) {
+            leaveScope(events);
+        }
+        scopedNow = nowScoped;
 
         List<String> pressed = new ArrayList<>();
         List<String> released = new ArrayList<>();
@@ -180,6 +211,10 @@ public final class TriggerEngine {
                 if (s.phase == Phase.PRESSED && s.now && !pressedThisTick.contains(e.getKey())) {
                     s.t++;
                     onHeldTick(e.getKey(), s, events);
+                }
+                if (s.captured && s.now && !pressedThisTick.contains(e.getKey())) {
+                    s.scopedT++;
+                    repeatTick(plans.get(e.getKey()), s, events);
                 }
             }
 
@@ -231,6 +266,7 @@ public final class TriggerEngine {
         s.heldActions.clear();
         s.sticky = false;
         s.consumedAsLayer = false;
+        s.captured = false;
         switch (s.phase) {
             case PRESSED -> {
                 Plan p = plans.get(b);
@@ -251,6 +287,20 @@ public final class TriggerEngine {
 
     private void onPress(String b, List<Event> events) {
         State s = states.get(b);
+
+        if (scopedNow) {
+            Plan sp = plans.get(b);
+            if (sp != null && !sp.scoped.isEmpty()) {
+                s.captured = true;
+                s.sticky = true;
+                s.scopedT = 0;
+                s.phase = Phase.IDLE;
+                s.pendingTaps = 0;
+                s.windowLeft = 0;
+                fire(sp.scoped, b, events);
+                return;
+            }
+        }
 
         // A layer button pressed while one of its modifiers is held.
         String modifier = null;
@@ -282,7 +332,7 @@ public final class TriggerEngine {
         }
 
         Plan p = plans.get(b);
-        if (p == null) return; // only a layer button, and no modifier is held: untouched
+        if (p == null || !p.hasNormal()) return; // only a layer (or scoped) button: untouched
 
         int count = s.phase == Phase.WAIT_WINDOW ? s.pendingTaps + 1 : 1;
         s.pressOrder = ++pressCounter;
@@ -333,6 +383,56 @@ public final class TriggerEngine {
             s.phase = Phase.PASSTHROUGH;
             s.pendingTaps = 0;
         }
+    }
+
+    /** Auto-repeat of a captured button's PRESS-mode SCOPED binds. */
+    private static void repeatTick(Plan p, State s, List<Event> events) {
+        for (Bind bind : p.scoped) {
+            if (bind.mode() != ActionMode.PRESS) continue;
+            int since = s.scopedT - bind.ticks();
+            if (since >= 0 && since % bind.windowTicks() == 0) {
+                events.add(new Event(Kind.PRESS, bind));
+            }
+        }
+    }
+
+    /**
+     * Scoping started. Buttons with SCOPED binds that were already down lose whatever they were in
+     * the middle of (a pending tap, a layer, a hold) and stay held back until released; they only
+     * zoom after a fresh press. Held actions they already started (a layer spell) run on until
+     * their own button is released.
+     */
+    private void enterScope() {
+        for (Map.Entry<String, State> e : states.entrySet()) {
+            Plan p = plans.get(e.getKey());
+            if (p == null || p.scoped.isEmpty()) continue;
+            State s = e.getValue();
+            if (s.prev) s.sticky = true;
+            s.phase = Phase.IDLE;
+            s.pendingTaps = 0;
+            s.windowLeft = 0;
+            s.replayRemaining = 0;
+            s.replayHigh = false;
+            s.layerUsed = false;
+        }
+    }
+
+    /** Scoping ended: repeats stop, held scoped actions end; captured buttons stay held back until released. */
+    private void leaveScope(List<Event> events) {
+        for (State s : states.values()) {
+            s.captured = false;
+            s.heldActions.removeIf(held -> {
+                if (held.type() != TriggerType.SCOPED) return false;
+                events.add(new Event(Kind.STOP, held));
+                return true;
+            });
+        }
+        toggledOn.removeIf(id -> {
+            Bind bind = bindsById.get(id);
+            if (bind.type() != TriggerType.SCOPED) return false;
+            events.add(new Event(Kind.STOP, bind));
+            return true;
+        });
     }
 
     private void resolveWindow(String b, List<Event> events) {
@@ -429,7 +529,9 @@ public final class TriggerEngine {
             toggledOn.clear();
         }
         wasActive = false;
+        scopedNow = false;
         for (State s : states.values()) {
+            s.captured = false;
             for (Bind held : s.heldActions) events.add(new Event(Kind.STOP, held));
             s.heldActions.clear();
         }

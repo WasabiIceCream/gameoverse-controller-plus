@@ -16,11 +16,11 @@ public final class BindEntry {
     public String button = "controlify:button/back";
     /** LAYER: the modifier button. CHORD: the second button. Ignored otherwise. */
     public String modifier = "controlify:button/left_shoulder";
-    /** HOLD: how long to hold. */
+    /** HOLD: how long to hold. SCOPED: delay before the first repeat. */
     public int ms = 400;
     /** MULTI_TAP: number of presses. */
     public int count = 2;
-    /** MULTI_TAP: longest gap between a release and the next press. */
+    /** MULTI_TAP: longest gap between a release and the next press. SCOPED: time between repeats. */
     public int windowMs = 250;
     /** Controlify binding id, or one of this mod's action ids. */
     public String action = "controlify:jump";
@@ -62,6 +62,7 @@ public final class BindEntry {
             case MULTI_TAP -> Bind.multiTap(id, button, count, msToTicks(windowMs), action, mode);
             case LAYER -> isBlank(modifier) || modifier.equals(button) ? null : Bind.layer(id, modifier, button, action, mode);
             case CHORD -> isBlank(modifier) || modifier.equals(button) ? null : Bind.chord(id, button, modifier, action, mode);
+            case SCOPED -> Bind.scoped(id, button, msToTicks(ms), msToTicks(windowMs), action, mode);
         };
     }
 
@@ -79,6 +80,7 @@ public final class BindEntry {
             case MULTI_TAP -> count + "x tap " + b;
             case LAYER -> m + " + " + b;
             case CHORD -> b + " & " + m;
+            case SCOPED -> "scoped " + b;
         };
         return trigger + " -> " + shortName(action);
     }
@@ -96,8 +98,9 @@ public final class BindEntry {
         if (!(o instanceof BindEntry e)) return false;
         return enabled == e.enabled && type == e.type && Objects.equals(button, e.button)
                 && (type != TriggerType.LAYER && type != TriggerType.CHORD || Objects.equals(modifier, e.modifier))
-                && (type != TriggerType.HOLD || ms == e.ms)
-                && (type != TriggerType.MULTI_TAP || count == e.count && windowMs == e.windowMs)
+                && (type != TriggerType.HOLD && type != TriggerType.SCOPED || ms == e.ms)
+                && (type != TriggerType.MULTI_TAP || count == e.count)
+                && (type != TriggerType.MULTI_TAP && type != TriggerType.SCOPED || windowMs == e.windowMs)
                 && Objects.equals(action, e.action) && mode == e.mode;
     }
 

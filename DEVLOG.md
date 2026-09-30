@@ -1,5 +1,56 @@
 # DEVLOG
 
+## 2026-09-30: 1.0.1, zoom with LB/RB while scoped
+
+User-approved design: while scoped, RB = one scroll-up step (zoom in), LB = one scroll-down step
+(zoom out), auto-repeating while held; LB/RB do nothing else while scoped.
+
+Checked in the jars first:
+
+- Minecraft 26.1.2 `MouseHandler.onScroll(long, double, double)` is private; returns unless the
+  window handle matches; with no screen and a player, `ScrollWheelHandler.onMouseScroll` (which
+  accumulates, returns early on 0), then spectator fly speed or
+  `Inventory.setSelectedSlot(getNextScrollWheelSelection(...))`.
+- Spyglass Improvements 1.5.13: `fabric.mixin.MouseMixin` injects (cancellable) at the
+  `getNextScrollWheelSelection` call in `onScroll`; `MouseEvents.onScroll` acts only when
+  `player.isScoping()` and first person, changes `SpyglassImprovementsClient.MULTIPLIER` (positive
+  scroll = zoom in) and cancels. Its `PlayerEntityMixin` makes `Player.isScoping()` return true
+  while its static `force_spyglass` is set, so `isScoping()` covers its spyglass key too.
+- Controlify 3.5.3 hooks mouse input at the GLFW callbacks (`core.MouseHandlerMixin.wrapMouseEvents`,
+  which switches input mode), not in `onScroll`, so calling `onScroll` directly doesn't flip it to
+  keyboard/mouse. It has its own `onScroll` invoker, but a mixin-package interface can't be
+  referenced from outside, so we add ours (`MouseHandlerInvoker`).
+- Other `onScroll` hooks in the Working instance (Bits and Balance arrow selection at HEAD, Amber
+  events, Camerapture, Create, Enderscape, Inventory Management, Smooth Scroll, Spyglass Astronomy,
+  Architectury, Fabric API) all see the step the way they see a wheel notch.
+- Ok Zoomer is **not installed** in either mod set (no jar in the Working instance or
+  `host-modpack/main/mods/`), so nothing could be checked against it. Detection falls back to
+  `KeyMapping.get("key.ok_zoomer.zoom").isDown()`, which does nothing while it's absent. The
+  1.0.0 D-up hold bind to it therefore does nothing either.
+
+Engine: new trigger type `SCOPED` (fires on press, PRESS mode repeats after `ticks` every
+`windowTicks`) and `tick(physical, active, scoped)`. While scoped, a button with a Scoped bind is
+"captured" (sticky, runs only its scoped binds; its layers and chords can't form since a captured
+modifier is never in a pressed phase). Scope start makes already-held scoped buttons sticky and
+drops their pending tap/layer; scope end stops repeats, Hold While and Toggle scoped actions.
+A button whose only binds are scoped is left alone outside a scope. 12 new tests (38 total).
+
+Actions `gameoverse_controller_plus:scroll_up/scroll_down` (in the config screen's action dropdown;
+the Scoped trigger reuses Hold Time as the repeat delay and Tap Window as the repeat interval).
+Customized configs don't get the two new defaults: Reset to defaults adds them.
+
+In-game test script (1.0.1):
+1. Log: still two `Controlify hook applied` lines; `Loaded 17 advanced controller binds (defaults)`.
+2. Not scoped: LB/RB taps still move the hotbar on release, LB+A still casts, LB+RB still opens the
+   Skill Forest.
+3. Hold a spyglass, hold LT to look through it. Tap RB: zooms in one step (spyglass sound); hold RB:
+   keeps zooming in after ~0.3 s. LB zooms out. Hotbar slot never changes; LB+A does nothing but A
+   jumps; LB+RB doesn't open the Skill Forest.
+4. Tap D-up (Spyglass Improvements toggle), then RB/LB: same zoom; tap D-up again to stop.
+5. Hold RB while scoped, release LT while still holding RB: zooming stops at once; releasing RB
+   afterwards doesn't move the hotbar. Next RB tap moves the hotbar as usual.
+6. Hold LB (not scoped), start scoping with LT, release LB: no hotbar change, no zoom.
+
 ## 2026-09-30: 1.0.0
 
 Built from `docs/controller-advanced-bindings-design.md` (researched against Controlify 3.5.3). User

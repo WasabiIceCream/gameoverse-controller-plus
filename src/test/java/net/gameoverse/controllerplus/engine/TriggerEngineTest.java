@@ -19,13 +19,14 @@ class TriggerEngineTest {
         final Set<String> down = new HashSet<>();
         final List<TriggerEngine.Result> results = new ArrayList<>();
         boolean active = true;
+        boolean scoped = false;
 
         Rig(int modifierTapTicks, Bind... binds) {
             engine = new TriggerEngine(List.of(binds), modifierTapTicks);
         }
 
         TriggerEngine.Result tick() {
-            TriggerEngine.Result r = engine.tick(down::contains, active);
+            TriggerEngine.Result r = engine.tick(down::contains, active, scoped);
             results.add(r);
             return r;
         }
@@ -430,5 +431,178 @@ class TriggerEngineTest {
             assertTrue(r.events().isEmpty());
             assertTrue(r.replay().isEmpty());
         }
+    }
+
+    // ---- SCOPED ----------------------------------------------------------------------------
+
+    /** The shipped shoulder setup: spell layers, the LB+RB chord, and scoped scroll steps. */
+    static Rig scopedRig() {
+        return new Rig(6,
+                Bind.layer(1, LB, A, "spell1", ActionMode.HOLD_WHILE),
+                Bind.layer(2, RB, A, "spell5", ActionMode.HOLD_WHILE),
+                Bind.chord(3, LB, RB, "skills", ActionMode.PRESS),
+                Bind.scoped(4, RB, 6, 2, "scroll_up", ActionMode.PRESS),
+                Bind.scoped(5, LB, 6, 2, "scroll_down", ActionMode.PRESS));
+    }
+
+    static long count(List<TriggerEngine.Event> events, String action) {
+        return events.stream().filter(e -> e.bind().action().equals(action)).count();
+    }
+
+    @Test
+    void scopedPressStepsThenRepeats() {
+        Rig rig = scopedRig();
+        rig.scoped = true;
+        TriggerEngine.Result r = rig.press(RB);
+        TriggerEngine.Event e = only(r.events());
+        assertEquals("scroll_up", e.bind().action());
+        assertEquals(TriggerEngine.Kind.PRESS, e.kind());
+        assertTrue(r.masked().contains(RB), "hotbar next never sees RB");
+        assertTrue(rig.idle(5).isEmpty(), "no repeat before the delay");
+        assertEquals("scroll_up", only(rig.tick().events()).bind().action(), "first repeat at 6 ticks");
+        assertTrue(rig.tick().events().isEmpty());
+        assertEquals(1, rig.tick().events().size(), "then every 2 ticks");
+        assertEquals(5, count(rig.idle(10), "scroll_up"));
+        r = rig.release(RB);
+        assertTrue(r.events().isEmpty());
+        assertTrue(r.replay().isEmpty(), "no hotbar tap on release");
+        assertTrue(rig.idle(5).isEmpty());
+    }
+
+    @Test
+    void scopedLbSendsScrollDown() {
+        Rig rig = scopedRig();
+        rig.scoped = true;
+        assertEquals("scroll_down", only(rig.press(LB).events()).bind().action());
+    }
+
+    @Test
+    void scopedShouldersMakeNoLayerOrChord() {
+        Rig rig = scopedRig();
+        rig.scoped = true;
+        rig.press(LB);
+        TriggerEngine.Result r = rig.press(A);
+        assertTrue(r.events().isEmpty(), "no spell while scoped");
+        assertTrue(Rig.sees(r, A, true), "A keeps its normal action");
+        r = rig.press(RB);
+        assertEquals("scroll_up", only(r.events()).bind().action(), "no chord, just a step");
+        assertTrue(r.masked().contains(LB) && r.masked().contains(RB));
+        rig.release(A);
+        rig.release(LB);
+        r = rig.release(RB);
+        assertTrue(r.replay().isEmpty() && r.events().isEmpty());
+    }
+
+    @Test
+    void unscopedShouldersBehaveNormally() {
+        Rig rig = scopedRig();
+        TriggerEngine.Result r = rig.press(LB);
+        assertTrue(r.events().isEmpty(), "scoped binds silent outside a scope");
+        r = rig.release(LB);
+        assertTrue(r.replay().contains(LB), "hotbar tap replayed as before");
+        rig.press(RB);
+        r = rig.press(A);
+        assertEquals("spell5", only(r.events()).bind().action());
+    }
+
+    @Test
+    void scopeEndingStopsRepeatsButKeepsButtonHeldBack() {
+        Rig rig = scopedRig();
+        rig.scoped = true;
+        rig.press(RB);
+        rig.idle(7);
+        rig.scoped = false;
+        TriggerEngine.Result r = rig.tick();
+        assertTrue(r.events().isEmpty());
+        assertTrue(r.masked().contains(RB), "held back until released");
+        assertTrue(rig.idle(10).isEmpty(), "no more steps");
+        r = rig.release(RB);
+        assertTrue(r.replay().isEmpty() && r.events().isEmpty(), "no hotbar tap after the scope");
+        // Back to normal right away.
+        rig.press(RB);
+        r = rig.release(RB);
+        assertTrue(r.replay().contains(RB));
+    }
+
+    @Test
+    void scopeStartingWhileHeldCancelsTheNormalPress() {
+        Rig rig = scopedRig();
+        rig.press(LB);
+        rig.scoped = true;
+        TriggerEngine.Result r = rig.tick();
+        assertTrue(r.events().isEmpty(), "no step: it needs a fresh press");
+        assertTrue(r.masked().contains(LB));
+        assertTrue(rig.idle(10).isEmpty());
+        r = rig.release(LB);
+        assertTrue(r.replay().isEmpty() && r.events().isEmpty(), "no hotbar tap");
+        assertEquals("scroll_down", only(rig.press(LB).events()).bind().action());
+    }
+
+    @Test
+    void layerSpellStartedBeforeScopeRunsUntilItsButtonIsReleased() {
+        Rig rig = scopedRig();
+        rig.press(LB);
+        assertEquals(TriggerEngine.Kind.START, only(rig.press(A).events()).kind());
+        rig.scoped = true;
+        assertTrue(rig.tick().events().isEmpty());
+        rig.release(A);
+        // The earlier release stopped it; a new A press under the held LB is no longer a layer.
+        TriggerEngine.Result r = rig.press(A);
+        assertTrue(r.events().isEmpty());
+        assertTrue(Rig.sees(r, A, true));
+    }
+
+    @Test
+    void layerSpellStopEventOnRelease() {
+        Rig rig = scopedRig();
+        rig.press(LB);
+        rig.press(A);
+        rig.scoped = true;
+        rig.tick();
+        assertEquals(TriggerEngine.Kind.STOP, only(rig.release(A).events()).kind());
+    }
+
+    @Test
+    void scopedOnlyButtonPassesThroughOutsideScope() {
+        Rig rig = new Rig(6, Bind.scoped(1, DOWN, 6, 2, "scroll_down", ActionMode.PRESS));
+        TriggerEngine.Result r = rig.press(DOWN);
+        assertFalse(r.masked().contains(DOWN));
+        assertTrue(r.events().isEmpty());
+        rig.release(DOWN);
+        rig.scoped = true;
+        r = rig.press(DOWN);
+        assertTrue(r.masked().contains(DOWN));
+        assertEquals(1, r.events().size());
+    }
+
+    @Test
+    void scopedIgnoredWhileInactive() {
+        Rig rig = scopedRig();
+        rig.scoped = true;
+        rig.active = false;
+        TriggerEngine.Result r = rig.press(RB);
+        assertTrue(r.events().isEmpty());
+        assertFalse(r.masked().contains(RB));
+    }
+
+    @Test
+    void screenOpeningStopsRepeats() {
+        Rig rig = scopedRig();
+        rig.scoped = true;
+        rig.press(RB);
+        rig.active = false;
+        assertTrue(rig.idle(10).isEmpty());
+        assertTrue(rig.tick().masked().contains(RB), "still held back");
+    }
+
+    @Test
+    void scopedHoldWhileStopsWhenScopeEnds() {
+        Rig rig = new Rig(6, Bind.scoped(1, RB, 6, 2, "zoom", ActionMode.HOLD_WHILE));
+        rig.scoped = true;
+        assertEquals(TriggerEngine.Kind.START, only(rig.press(RB).events()).kind());
+        assertTrue(rig.idle(10).isEmpty(), "held actions don't repeat");
+        rig.scoped = false;
+        assertEquals(TriggerEngine.Kind.STOP, only(rig.tick().events()).kind());
+        assertTrue(rig.release(RB).events().isEmpty());
     }
 }

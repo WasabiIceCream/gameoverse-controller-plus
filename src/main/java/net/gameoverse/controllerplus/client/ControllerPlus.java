@@ -95,10 +95,11 @@ public final class ControllerPlus {
         slot.hardActive = hardActive;
         boolean active = hardActive && mc.screen == null;
 
+        boolean scoped = active && Scoping.isScoped(mc);
         TriggerEngine.Result r = slot.engine.tick(b -> {
             Identifier bid = id(b);
             return bid != null && raw.isButtonDown(bid);
-        }, active);
+        }, active, scoped);
         if (!r.events().isEmpty()) driver.handle(r.events(), current ? controller : null);
         if (!r.changesView()) return raw;
         return new MaskedStateView(raw, toIds(r.masked()), toIds(r.replay()));

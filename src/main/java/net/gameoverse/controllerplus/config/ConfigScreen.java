@@ -200,6 +200,8 @@ public final class ConfigScreen {
         }
         List<String> out = new ArrayList<>();
         for (int i = 1; i <= 9; i++) out.add(Defaults.SPELL_SLOT + i);
+        out.add(Defaults.SCROLL_UP);
+        out.add(Defaults.SCROLL_DOWN);
         out.addAll(ids);
         return out;
     }

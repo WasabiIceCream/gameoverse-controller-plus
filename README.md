@@ -25,6 +25,14 @@ list in the config screen.
 | hold D-up 250 ms | Ok Zoomer zoom (`key.ok_zoomer.zoom`) | hold while pressed |
 | tap D-left | Hotbar Slot Cycling cycle left | press |
 | hold D-left 250 ms | pick block | press |
+| RB while scoped | scroll up one notch (zoom in), repeats after 300 ms every 100 ms | press |
+| LB while scoped | scroll down one notch (zoom out), same repeat | press |
+
+"Scoped" means looking through a spyglass: vanilla's, or Spyglass Improvements' spyglass key (which
+makes vanilla's `isScoping()` true), or holding Ok Zoomer's zoom key if that mod is installed. While
+scoped, LB and RB only zoom: no hotbar change, no spell layers, no LB+RB chord. A shoulder already
+held when scoping starts does nothing until it is pressed again; when scoping ends the repeats stop
+at once and a still-held shoulder stays inert until released.
 
 Unchanged: tapping LB/RB still moves the hotbar slot (on release, see below), tapping Back still
 changes perspective, tapping Y still opens the inventory. A, X and B alone are never delayed.
@@ -58,6 +66,10 @@ casts the next one.
     if no layer button was used and it was held less than 300 ms (configurable).
   - A held-back button stays held back until physically released, so releasing LB before A never
     leaks a jump.
+  - Scoped: the engine gets a per-tick "scoped" flag. While it is set, a button with a Scoped bind
+    runs only that bind (on press, then auto-repeat) and is held back from everything else,
+    including its layers and chords. Scoping starting mid-press cancels that press's pending
+    tap/layer (layer actions already running continue until their own button is released).
   - Active only in game with no screen open, on the current controller, in controller or mixed
     input mode. A screen opening drops pending taps and toggles; hold-while actions keep going
     until their button is released. Leaving the world, switching to keyboard, disconnecting or
@@ -65,7 +77,8 @@ casts the next one.
 - **Actions**: any Controlify binding id (`controlify:...`, or `controlify_modded:<KeyMapping name>`
   for other mods' keys, which Controlify generates automatically) run by `InputBinding.fakePress()`,
   or held by forcing the binding's state. `gameoverse_controller_plus:spell_slot_N` holds down the
-  KeyMapping Spell Engine resolved for that slot (see below).
+  KeyMapping Spell Engine resolved for that slot (see below). `gameoverse_controller_plus:scroll_up`
+  / `scroll_down` is one mouse wheel notch (see below).
 - **Feedback**: a short rumble when a hold or multi-tap bind fires (toggle in the config).
 
 ### The two Controlify hooks (and the version pin)
@@ -105,6 +118,17 @@ instead asks `SpellHotbar.INSTANCE.structuredSlots.other()` which KeyMapping cas
 now and holds that one down (`setDown` only, no click, so a deferred `key.hotbar.N` never switches
 the held item). Spell Engine is optional; without it the spell actions do nothing.
 
+### Scroll steps
+
+`scroll_up`/`scroll_down` call Minecraft's private `MouseHandler.onScroll(window, 0, ±1)` through an
+`@Invoker` mixin, the method the GLFW scroll callback calls, so every mod's injection into it sees
+the step exactly as a wheel notch (Controlify's own mouse hook sits one level up, on the GLFW
+callback, so a synthetic step doesn't switch Controlify to keyboard/mouse mode). Spyglass
+Improvements 1.5.13 injects at `ScrollWheelHandler.getNextScrollWheelSelection` inside it and, when
+the player is scoping in first person, changes its zoom multiplier and cancels the hotbar change.
+If nothing takes the step, the selected slot and flying speed are restored afterwards, so a step
+never changes the held item.
+
 ## Config
 
 `config/gameoverse_controller_plus.json`, edited in game through ModMenu or Controlify's
@@ -137,3 +161,6 @@ AutoModpack's manifest picks it up) and the Working test instance's `mods/`.
 - Buttons only; triggers (LT/RT) and stick directions can't be used in advanced binds.
 - No on-screen hint showing what a layer does yet, and no "press the buttons" capture widget.
 - Steam Input chords on top of these work but can double up.
+- Ok Zoomer is not in the pack (neither mod set) as of 1.0.1, so its detection (zoom key held) and
+  its scroll handling are unverified; the D-up hold bind to `key.ok_zoomer.zoom` does nothing
+  until it is installed. Ok Zoomer's toggle zoom mode wouldn't count as scoped.

@@ -6,7 +6,8 @@
   "compatibilityLevel": "JAVA_25",
   "client": [
     "InputBindingImplMixin",
-    "InputComponentMixin"
+    "InputComponentMixin",
+    "MouseHandlerInvoker"
   ],
   "injectors": {
     "defaultRequire": 0

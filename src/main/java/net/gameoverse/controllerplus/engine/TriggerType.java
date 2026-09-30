@@ -11,5 +11,11 @@ public enum TriggerType {
     /** {@code other} (the modifier) held, then {@code button} pressed. */
     LAYER,
     /** {@code button} and {@code other} held together, in either order. */
-    CHORD
+    CHORD,
+    /**
+     * {@code button} pressed while the player is scoped (spyglass or zoom). Fires on press, then
+     * repeats every {@code windowTicks} after {@code ticks} while held (PRESS mode). While scoped the
+     * button does nothing else: its other binds, layers and normal Controlify bindings are held back.
+     */
+    SCOPED
 }

@@ -47,6 +47,11 @@ final class ActionDriver {
 
     private void handle(TriggerEngine.Event e, ControllerEntity controller) {
         Bind bind = e.bind();
+        if (Defaults.SCROLL_UP.equals(bind.action()) || Defaults.SCROLL_DOWN.equals(bind.action())) {
+            // Every press or repeat is one wheel notch; Hold While and Toggle just step once on start.
+            if (e.kind() != TriggerEngine.Kind.STOP) Scoping.scrollStep(Defaults.SCROLL_UP.equals(bind.action()) ? 1 : -1);
+            return;
+        }
         int spellSlot = spellSlot(bind.action());
         if (e.kind() != TriggerEngine.Kind.STOP && rumble && controller != null
                 && (bind.type() == TriggerType.HOLD || bind.type() == TriggerType.MULTI_TAP)) {
