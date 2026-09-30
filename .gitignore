@@ -26,3 +26,5 @@ run/
 
 # reference jars used for decompiling/API lookup during porting, not source, not committed
 reference-jars/
+logs/
+run/
