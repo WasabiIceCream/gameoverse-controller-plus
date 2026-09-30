@@ -1,5 +1,109 @@
 # DEVLOG
 
+## 2026-09-30: 1.0.3, scoped fixes, Spyglass Astronomy and JEI from a controller
+
+User feedback from in-game testing of 1.0.2 (which works): (1) while scoped the guide still showed
+Controlify's "Zoom [LT]"; (2) the pad buzzed lightly for as long as the spyglass was up; (3) no
+controller access to Spyglass Astronomy while scoped; (4) X swapped hands while scoped; (5) no way to
+show JEI recipes/uses for the item under the cursor in inventories.
+
+Findings (read in Controlify 3.5.3 source at the tag, Spyglass Astronomy 1.0.27, Spyglass Improvements
+1.5.13 and JEI 29.43.0.106 decompiled, Minecraft 26.1.2):
+
+- **Vibration**: Controlify's `mixins/feature/rumble/useitem/LocalPlayerMixin` starts a
+  `ContinuousRumbleEffect` on `startUsingItem`; case `BLOCK, SPYGLASS` is `RumbleState(0, tick % 4 / 4 *
+  0.12 + 0.05)` with no timeout, stopped only by `stopUsingItem`. Spyglass Improvements' key handler
+  calls `gameMode.useItem` on the real spyglass (swapping it into the hand), so D-up scoping starts it
+  the same as LT. Not ours: our rumble is one `BasicRumbleEffect.constant(0.25, 0.1, 3)` per HOLD or
+  MULTI_TAP trigger (the D-up hold toggle fires once; REPEAT follow-ups and Scoped binds never rumble).
+  Fix: each client tick, if the player is using a SPYGLASS-animation item, `stop()` the effect from
+  Controlify's public `UseItemEffectHolder` interface (its LocalPlayer mixin implements it). Only that
+  effect; shield (same pulse, BLOCK), bow, eat, damage rumbles untouched. Config `scopeRumble` (off).
+- **Zoom [LT]**: `in_game.json` rules `for: controlify:use` with a spyglass in main or off hand, text
+  `controlify.guide.ingame.zoom`. Spyglass Improvements' `MinecraftClientMixin` ORs its key into the
+  `keyUse.isDown()` check in `handleKeybinds`, so with the D-up toggle LT does nothing (release doesn't
+  stop, press is consumed). Plan now carries `hiddenBindings` (`controlify:use`, `controlify:attack`)
+  while scoped and a `STOP_SCOPE` entry (`Stop` with the use binding's own glyph, right side) only
+  when LT is held, the item is in use, and neither the Spyglass Improvements key nor our toggle holds it.
+- **Spyglass Astronomy**: no KeyMappings. `SpyglassAstronomyClient.update()` (END_CLIENT_TICK) polls
+  `keyPickItem.isDown()` rising edge (cycle `editMode` 0/1/2) and `keyAttack.isDown()` (mode 1 draw
+  while held, the line end follows the view from its `MouseHandler.turnPlayer` TAIL hook; mode 2
+  select). Its update-while-drawing call is gated on `isModLoaded("spyglass-improvements")`, the wrong id
+  (the mod is `spyglass_improvements`), but the turnPlayer hook covers it. Commands `sga:info`,
+  `sga:name`, `sga:select`, ... are Fabric client commands. Controlify: `attack` has
+  `keyEmulation(keyAttack)` (edge-based `setPressed`), `pick_block` has none, so RT drew but nothing
+  could change the mode. New actions `astronomy_mode` (3-tick `setDown` pulse of `keyPickItem`, no
+  click), `astronomy_use` (hold `keyAttack` while B held, only in modes 1-2; release keeps it down if
+  Controlify's attack binding is held), `astronomy_info` (`connection.sendCommand("sga:info")`, which
+  Fabric's `ClientPacketListenerMixin.onSendCommand` runs locally). No mouse events needed.
+- **Swap hands**: `controlify:swap_hands` on X (default layout, not rebound in our profile). X now has a
+  Scoped bind, so the engine captures it while scoped.
+- **Scoped Press/Repeat**: X's info must not auto-repeat, so Scoped + Press now fires once and Scoped +
+  Repeat does the old repeat; the zoom defaults are Repeat, config version 2, version-1 files have their
+  Scoped Press binds migrated to Repeat on load.
+- **JEI**: Controlify container screens use `AbstractContainerScreenProcessor` (vmouse
+  `CURSOR_SCROLL`, A `inv_select`, Y `inv_quick_move`, X `inv_take_half`, Y `drop_inventory` with a
+  carried stack, B `gui_back`, LB/RB tabs, D-pad `vmouse_snap_*`, LS `vmouse_shift` (Shift held via its
+  `InputConstantsMixin`), Back `vmouse_toggle`, LT/RT page). RS click is unused there. Our profile's
+  BRBE recipe/usage view binds (LS/RS, `controlify_modded`) are dead in screens:
+  `KeyMappingEmulationOutput.push` returns while a screen is open. JEI's Fabric side handles screen keys
+  through Fabric's screen keyboard events (inside `KeyboardHandler.keyPress`); `RecipesGui.keyPressed`
+  goes to its `UserInputHandler` (`recipeBack` = Backspace -> `back()`; close key and inventory key ->
+  `onClose()`, which returns to the parent screen). Controlify's keyboard hook wraps the GLFW key
+  callback (`KeyboardHandlerMixin.wrapKeyboardEvents`), above `keyPress`. So: `key_press/<name>` looks up
+  the KeyMapping's bound key (`key` accessor) and invokes `keyPress` (press, release; `onButton` for a
+  mouse key) at the end of the client tick. Controlify's container guide is `GuideInstanceImpl` with
+  domain `controlify:container` (`ContainerContext` has the hovered slot), so the guide hook handles it
+  too. JEI's recipe screen has no Controlify guide.
+
+Engine: `InputContext` (GAME, SCREEN, RECIPE_SCREEN) on each `Bind`/`BindEntry` (missing = GAME, so old
+configs load unchanged; Scoped binds compile only in GAME); `EngineSet` runs one `TriggerEngine` per
+context and merges masks (replays of a button another engine masks are dropped). `client/Contexts`:
+no screen = GAME; `AbstractContainerScreen` = SCREEN; `mezz.jei.gui.recipes.RecipesGui` = SCREEN +
+RECIPE_SCREEN; none while a text field is focused (focused `EditBox`, any child `EditBox`, the creative
+search box via an accessor). `GuidePlanner.plan` uses GAME binds only; `planScreen` the screen ones.
+
+New mixins: `KeyboardHandlerInvoker` (`keyPress`), `MouseHandlerInvoker.onButton`,
+`KeyMappingAccessor.key`, `CreativeModeInventoryScreenAccessor.searchBox`.
+
+Default layout adds: scoped Y = astronomy mode, scoped B (hold while) = astronomy use, scoped X =
+astronomy info; SCREEN tap RS = `key_press/key.jei.showRecipe`, hold RS 300 ms =
+`key_press/key.jei.showUses`; RECIPE_SCREEN tap Y = `key_press/key.jei.recipeBack`. 25 binds.
+
+Tests: 77 (was 52): 6 new engine tests (scoped Press once, scoped Y/B/X, face buttons normal outside a
+scope, A still jumps), 10 `EngineSetTest` (screen binds silent in game, RS tap/hold, other inventory
+buttons pass through, Y Back only in JEI recipes, text field = no context, button held across a context
+change stays masked, scoped is game only, hard reset, contexts), 5 planner tests (hidden bindings and
+LT Stop, astronomy entries, screen guide, level 0, in-game plan ignores screen binds), 4 config tests
+(defaults compile with contexts, missing context = GAME, scoped screen bind rejected, v1 migration).
+Dev-client smoke test (temporary `runClient` with Controlify and YACL on the runtime classpath and a
+self-test that loaded the Controlify targets and `CreativeModeInventoryScreen`, read a KeyMapping's key
+through the accessor, ran a screen key press through the `keyPress` invoker on the title screen, then
+exited; reverted before the release build): all three `Controlify hook applied` lines, `Loaded 25
+advanced controller binds (defaults)`, no mixin errors.
+
+In-game test script (1.0.3; Controlify "Show in-game button guide" on, verbosity Reduced):
+1. Log: `Loaded 25 advanced controller binds (defaults)`, the three `Controlify hook applied` lines.
+2. Spyglass in the hotbar, hold D-up: spyglass up, **no continuous vibration** (one short pulse from
+   the hold). Hold LT with a spyglass in hand: also no buzz. Block with a shield: its rumble still works.
+3. Scoped by LT: guide right column shows `Stop [LT]`, no `Zoom [LT]`; release LT stops. Scoped by D-up:
+   no LT line, `Hold: Stop Spyglass [D-up]`; LT does nothing.
+4. Scoped, press X: no hand swap (chat says Spyglass Astronomy has nothing selected, or shows info in
+   select mode). Y: no inventory, no World Tier; the scope overlay changes (draw mode), guide `[Y] Select
+   mode`; again: select mode (`[Y] Normal view`, `[B] Select`, `[X] Info`); again: normal.
+5. Draw mode, at night: aim at a star, hold B, look to another star, release: a constellation line.
+   RT does the same. Select mode: B on a star selects it (action bar), X prints its info in chat.
+6. A still jumps while scoped; RB/LB still zoom (and repeat when held); off-scope X swaps hands, Y opens
+   the inventory, B rolls, all instantly.
+7. Open the inventory, move the cursor onto an item, tap RS: JEI recipes for it. B: back to the
+   inventory. Hold RS on an item: JEI uses. The bottom guide shows `Recipes [RS]` and `Hold: Uses [RS]`
+   while the cursor is on an item. A/X/Y still pick up / take half / quick-move without delay.
+8. In JEI's recipe screen: press Back once (Controlify cursor on), point at an ingredient, RS tap /
+   hold: its recipes / uses; Y: back to the previous recipes; B: closes to the inventory.
+9. Anvil (rename field focused), creative search: RS does nothing and typing is unaffected.
+10. Advanced Binds Settings: each bind shows a Where option; screen binds' summaries start with
+    `[screens]` / `[JEI recipes]`; "Rumble While Scoped" on brings the spyglass buzz back.
+
 ## 2026-09-30: 1.0.2, new D-pad layout and Controlify button guide hints
 
 User's design: D-up tap = world map, hold = spyglass toggle (was the tap); D-down tap = crawl toggle,

@@ -27,14 +27,66 @@ list in the config screen.
 | hold D-down 250 ms | drop one item from the held stack, then one more every 150 ms while held | repeat |
 | tap D-left | Hotbar Slot Cycling cycle left | press |
 | hold D-left 250 ms | pick block | press |
-| RB while scoped | scroll up one notch (zoom in), repeats after 300 ms every 100 ms | press |
-| LB while scoped | scroll down one notch (zoom out), same repeat | press |
+| RB while scoped | scroll up one notch (zoom in), repeats after 300 ms every 100 ms | repeat |
+| LB while scoped | scroll down one notch (zoom out), same repeat | repeat |
+| Y while scoped | Spyglass Astronomy: next mode (normal, draw constellations, select) | press |
+| B while scoped | Spyglass Astronomy: draw a constellation line / select (like RT) | hold while pressed |
+| X while scoped | Spyglass Astronomy: info on the selection (`/sga:info`); no hand swap | press |
+| tap RS in an inventory or JEI's recipe screen | JEI recipes for the item under the cursor (`key.jei.showRecipe`) | press |
+| hold RS 300 ms, same screens | JEI uses (`key.jei.showUses`) | press |
+| Y in JEI's recipe screen | JEI back to the previous recipes (`key.jei.recipeBack`) | press |
 
 "Scoped" means looking through a spyglass: vanilla's, or Spyglass Improvements' spyglass key (which
 makes vanilla's `isScoping()` true), or holding Ok Zoomer's zoom key if that mod is installed. While
 scoped, LB and RB only zoom: no hotbar change, no spell layers, no LB+RB chord. A shoulder already
 held when scoping starts does nothing until it is pressed again; when scoping ends the repeats stop
-at once and a still-held shoulder stays inert until released.
+at once and a still-held shoulder stays inert until released. Since 1.0.3 X, Y and B are Scoped too
+(Spyglass Astronomy, below), so while scoped they don't swap hands, open the inventory or World Tier,
+or combat-roll; A still jumps.
+
+### Spyglass Astronomy while scoped (1.0.3)
+
+Spyglass Astronomy 1.0.27 has no key bindings of its own. Its client tick polls vanilla keys while the
+player is scoping: `key.pickItem` (middle mouse) going down cycles `editMode` (0 normal, 1 draw
+constellations, 2 select), and `key.attack` held draws a line from the star nearest the crosshair to
+the one nearest where you look when you let go (mode 1) or selects the nearest object (mode 2). Naming
+and info are client commands (`/sga:name <name>`, `/sga:info`). Controlify's RT already drives
+`key.attack` (key emulation), so RT could draw, but its pick-block binding picks directly and never
+sets `key.pickItem`, so the mode couldn't be changed from a controller. The actions:
+
+- `astronomy_mode`: holds `key.pickItem` down for 3 ticks (`setDown` only, no click, so nothing is
+  picked; vanilla discards pick clicks while an item is in use anyway).
+- `astronomy_use`: holds `key.attack` down while B is held, only in modes 1 and 2 (in normal mode
+  it does nothing). On release it lets go unless RT is held.
+- `astronomy_info`: sends `sga:info` through `ClientPacketListener.sendCommand`, which Fabric's client
+  command API runs locally (chat shows the info for the selected star, constellation or planet).
+
+`editMode` is read by reflection (a public static int) for the guide lines and the gate. No mouse
+events are needed: the draw line follows the view through the mod's own `MouseHandler.turnPlayer`
+hook, which runs every frame whatever turns the camera.
+
+### JEI in inventories (1.0.3)
+
+Controlify drives container screens with its virtual cursor (`VirtualMouseBehaviour.CURSOR_SCROLL`):
+A picks up, X takes half, Y quick-moves (drops the carried stack when outside), B closes, LB/RB
+switch tabs, the D-pad snaps between slots, LS click holds Shift, Back toggles the cursor. The right
+stick click has no screen action, so it carries the JEI binds. Over JEI's item list (not a slot) A and
+X already click, which JEI reads as show recipes / show uses. Our profile's
+`controlify_modded:key.brbe.recipeview`/`usageview` on LS/RS never work in screens: Controlify's key
+emulation (`KeyMappingEmulationOutput`) is skipped whenever a screen is open, and JEI and BRBE match
+screen key *events* anyway, not `isDown()`.
+
+So `gameoverse_controller_plus:key_press/<KeyMapping name>` presses whatever key that mapping is bound
+to, through Minecraft's private `KeyboardHandler.keyPress` (an `@Invoker`; `MouseHandler.onButton`
+for a mouse-bound key), at the end of the client tick. Fabric's screen keyboard events fire inside it,
+which is where JEI listens, and it reads the cursor position for the item under it, which Controlify's
+virtual cursor keeps up to date. Controlify's keyboard-mode switch wraps the GLFW callback one level up,
+so the press doesn't flip it to keyboard/mouse.
+
+JEI's recipe screen isn't a container screen: Controlify navigates it by focus unless the cursor is on
+for it (press Back once there; Controlify remembers it per screen). With the cursor, A/X click
+ingredients (recipes/uses) and RS tap/hold work too. B still closes the screen back to the inventory;
+Y goes back one step in JEI's recipe history (JEI's `recipeBack`, Backspace).
 
 Controlify's own D-down binding (Drop Item, `controlify:drop`, from its default layout; our profile
 doesn't rebind D-down) never fires in game: D-down has a tap bind, so it is held back like every
@@ -84,10 +136,16 @@ casts the next one.
     runs only that bind (on press, then auto-repeat) and is held back from everything else,
     including its layers and chords. Scoping starting mid-press cancels that press's pending
     tap/layer (layer actions already running continue until their own button is released).
-  - Active only in game with no screen open, on the current controller, in controller or mixed
-    input mode. A screen opening drops pending taps and toggles; hold-while actions keep going
-    until their button is released. Leaving the world, switching to keyboard, disconnecting or
-    saving the config releases everything.
+  - Contexts (1.0.3, `engine/EngineSet`): each bind has one, In Game (default), Inventory Screens
+    (container screens and JEI's recipe screen) or JEI Recipe Screen, and each context runs its own
+    engine, active only while its context is: In Game with no screen open; the screen contexts in
+    those screens only while no text field is focused (anvil name, creative or JEI search, any
+    focused `EditBox`). Always on the current controller, in controller or mixed input mode. The
+    engines' masks are merged, so a screen bind's button is held back from Controlify's GUI actions
+    only in that screen, and a button held when the context changes stays held back until released.
+    A screen opening drops the in-game engine's pending taps and toggles; hold-while actions keep
+    going until their button is released. Leaving the world, switching to keyboard, disconnecting
+    or saving the config releases everything.
 - **Actions**: any Controlify binding id (`controlify:...`, or `controlify_modded:<KeyMapping name>`
   for other mods' keys, which Controlify generates automatically) run by `InputBinding.fakePress()`,
   or held by forcing the binding's state. `gameoverse_controller_plus:spell_slot_N` holds down the
@@ -95,17 +153,38 @@ casts the next one.
   / `scroll_down` is one mouse wheel notch (see below). `gameoverse_controller_plus:drop_one` adds
   one click to vanilla's Drop key (`key.drop`, through a `KeyMapping.clickCount` accessor), so
   Minecraft's own key handling drops one item exactly as a press of Q does (never the whole stack).
+  `astronomy_mode`/`astronomy_use`/`astronomy_info` and `key_press/<name>`: see the two 1.0.3
+  sections above.
 - **Repeat mode** (1.0.2): a press when the trigger fires, then another every Tap Window (the bind's
   `windowMs`) for as long as the trigger's button stays held; ends on release or when a screen opens.
   Follow-up presses don't rumble.
+- **Scoped + Press** fires once (1.0.3); **Scoped + Repeat** repeats after Hold Time every Tap Window
+  (the zoom). Before 1.0.3 a Scoped bind in Press mode repeated; config files from then (version 1)
+  are migrated to Repeat on load.
 - **Feedback**: a short rumble when a hold or multi-tap bind fires (toggle in the config).
+- **Spyglass rumble** (1.0.3): the constant light buzz while looking through a spyglass was
+  Controlify's own item-use rumble. `LocalPlayerMixin` (its `feature.rumble.useitem` package) starts a
+  `ContinuousRumbleEffect` in `startUsingItem` per use animation; for SPYGLASS (and shields) it is a
+  weak-motor pulse of 0.05-0.14 with no timeout, stopped only when the item use ends. Spyglass
+  Improvements' key (our D-up hold) uses the real spyglass item, so the buzz lasted as long as the
+  spyglass was up. Each client tick, while the player uses a SPYGLASS-animation item, we stop that one
+  effect through Controlify's `UseItemEffectHolder` interface (implemented on `LocalPlayer`). Shield,
+  bow, damage and every other rumble stay. Config "Rumble While Scoped" (off by default) turns it back
+  on. None of our own rumbles repeat: they fire once per hold/multi-tap trigger, and Scoped binds never
+  rumble.
 
 ## Controlify's in-game button guide
 
 With Controlify's "Show in-game button guide" on, the guide also shows the advanced binds, picked
 for the moment (`engine/GuidePlanner`, unit tested; labels and glyphs in `client/ButtonGuide`):
 
-- **Scoped**: `[RB] Zoom in`, `[LB] Zoom out`, plus the other buttons' hints.
+- **Scoped**: `[RB] Zoom in`, `[LB] Zoom out`, the Spyglass Astronomy buttons (`[Y] Draw mode` /
+  `Select mode` / `Normal view`, the mode Y switches to; `[B] Hold: Draw line` in draw mode, `[B]
+  Select` and `[X] Info` in select mode), plus the other buttons' hints. Controlify's own lines for
+  LT (its "Zoom" rule for a spyglass in hand) and RT are hidden, and so are X/Y/B's. When the spyglass
+  is up because LT is held, `Stop [LT]` sits on the right; when it is up through the D-up toggle, LT
+  does nothing (Spyglass Improvements keeps the use key "down" while its key is held), so there is no
+  LT line and `Hold: Stop Spyglass [D-up]` says how to end it.
 - **LB (or RB) held** for 200 ms (so a hotbar tap doesn't flash it): only that layer, each face button
   with the name of the spell it casts now (Spell Engine's spell bar; empty slots are skipped), and
   `[RB] Skill Forest` for the chord. Controlify's own A/X/Y/B entries hide meanwhile.
@@ -119,6 +198,11 @@ for the moment (`engine/GuidePlanner`, unit tested; labels and glyphs in `client
   - Full: every bind (`Map`, `Crawl`, `Hotbar row`, `Pick block` too).
   D-pad hints sit in the right column (next to Controlify's use/drop lines), the rest on the left.
 - Controlify's own entry for a button whose tap we replaced (Drop on D-down) is hidden.
+- **Inventory screens** (1.0.3): Controlify's container guide (bottom of the screen, "Show screen
+  guides", on in our profile) is the same `GuideInstanceImpl` with domain `controlify:container`, so the
+  same hook adds `Recipes [RS]` and `Hold: Uses [RS]` on the right while the cursor is on a slot with an
+  item. JEI's recipe screen has no Controlify guide at all, so its Y Back isn't shown anywhere (it is
+  in the README and the config screen only).
 
 Labels come from our lang file (`gameoverse_controller_plus.guide.action.<action id with : as .>`),
 falling back to the Controlify binding's name, so customized binds still get a line. "Hold: ",
@@ -130,7 +214,8 @@ rules: one binding's glyph plus fixed text, first matching rule per binding wins
 stack), and the public API (`ContextualDomain.registerContributor`) can only add facts. A rule can't
 show live spell names, two glyphs, or hide another mod's rule, and the order of our rules against
 Controlify's own would depend on resource pack order. So `GuideInstanceImplMixin` hooks
-`GuideInstanceImpl.update` twice, in-game domain only (`controlify:in_game`; screen guides untouched):
+`GuideInstanceImpl.update` twice, for the in-game domain (`controlify:in_game`) and since 1.0.3 the
+container screen domain (`controlify:container`); other guides untouched:
 a `@ModifyVariable` on the stored list of winning rules (removes the overridden ones) and an
 `@Inject` at TAIL that appends our lines to its left/right `PrecomputedLines`. Both `require = 0`;
 the mixin plugin logs `Controlify hook applied: in-game button guide` or a warning, and any
@@ -189,9 +274,11 @@ never changes the held item.
 
 `config/gameoverse_controller_plus.json`, edited in game through ModMenu or Controlify's
 bindable "Advanced Binds Settings" action (unbound by default, can go in the radial menu). A YACL
-screen: general settings, then one collapsible group per bind with trigger type, button,
-modifier/second button, hold time, tap count, tap window, action (dropdown of every Controlify
-binding id plus the spell slots, free text allowed) and mode; Add, Remove and Reset to defaults.
+screen: general settings (enabled, rumble on hold, Rumble While Scoped, layer tap time), then one
+collapsible group per bind with where (In Game, Inventory Screens, JEI Recipe Screen), trigger
+type, button, modifier/second button, hold time, tap count, tap window, action (dropdown of every
+Controlify binding id plus this mod's actions, free text allowed) and mode; Add, Remove and Reset
+to defaults.
 While your list matches the defaults nothing is stored, so later default changes still reach you.
 
 ## Building
@@ -215,6 +302,14 @@ AutoModpack's manifest picks it up) and the Working test instance's `mods/`.
 - Spell layers don't cast while sneaking: Spell Engine's `sneakingByPassSpellHotbar` is on, and RS is
   toggle sneak.
 - Buttons only; triggers (LT/RT) and stick directions can't be used in advanced binds.
+- Screen binds (1.0.3) are off in any screen with a focused text field, including an anvil (its name
+  field has focus from the start). The JEI recipe screen needs Controlify's cursor turned on (Back) for
+  the item-under-cursor binds. JEI's R/U keys must stay bound to a key or mouse button (they are, by
+  default); an unbound one logs a warning once and does nothing.
+- Spyglass Astronomy naming needs typing (`/sga:name <name>` in chat; Controlify's on-screen keyboard
+  works there). Its mode and hints depend on reading its `editMode` field by reflection: if a future
+  version renames it, the log says so once and Y/X still act but show no hints, and B does nothing
+  (its gate can't see the mode); RT still draws.
 - No "press the buttons" capture widget in the config screen.
 - The button guide integration is a third hook into Controlify internals (`GuideInstanceImpl.update`,
   `PrecomputedLines`); recheck it with the other two when Controlify updates.

@@ -1,10 +1,13 @@
 package net.gameoverse.controllerplus.client;
 
+import dev.isxander.controlify.rumble.ContinuousRumbleEffect;
+import dev.isxander.controlify.rumble.effects.UseItemEffectHolder;
 import net.gameoverse.controllerplus.mixin.MouseHandlerInvoker;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.ItemUseAnimation;
 
 /** "Is the player scoped?" for the engine, and the synthetic mouse wheel step the scoped binds emit. */
 final class Scoping {
@@ -24,6 +27,24 @@ final class Scoping {
         if (player.isScoping()) return true;
         KeyMapping zoom = KeyMapping.get(OK_ZOOMER_ZOOM);
         return zoom != null && zoom.isDown();
+    }
+
+    /**
+     * Stops Controlify's item-use rumble while a spyglass is in use. Controlify starts a
+     * {@code ContinuousRumbleEffect} in {@code LocalPlayer.startUsingItem} for each use animation; for
+     * SPYGLASS (and BLOCK, shields) it is a light pulse on the weak motor, 0.05 to 0.14, with no
+     * timeout, stopped only by {@code stopUsingItem}. Spyglass Improvements' key (our D-up hold) uses
+     * the spyglass item too, so the pad buzzed for as long as the spyglass was up. The effect is
+     * exposed through Controlify's {@code UseItemEffectHolder} (implemented by its LocalPlayer mixin);
+     * stopping it ends that one effect and leaves every other rumble (shield, bow, damage) alone.
+     */
+    static void silenceSpyglassRumble(Minecraft mc) {
+        LocalPlayer player = mc.player;
+        if (player == null || !player.isUsingItem()) return;
+        if (player.getUseItem().getUseAnimation() != ItemUseAnimation.SPYGLASS) return;
+        if (!(player instanceof UseItemEffectHolder holder)) return;
+        ContinuousRumbleEffect effect = holder.controlify$getUseItemEffect();
+        if (effect != null && !effect.isFinished()) effect.stop();
     }
 
     /**

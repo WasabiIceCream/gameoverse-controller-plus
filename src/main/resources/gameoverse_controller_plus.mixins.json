@@ -5,10 +5,12 @@
   "plugin": "net.gameoverse.controllerplus.mixin.ControllerPlusMixinPlugin",
   "compatibilityLevel": "JAVA_25",
   "client": [
+    "CreativeModeInventoryScreenAccessor",
     "GuideInstanceImplMixin",
     "InputBindingImplMixin",
     "InputComponentMixin",
     "KeyMappingAccessor",
+    "KeyboardHandlerInvoker",
     "MouseHandlerInvoker"
   ],
   "injectors": {

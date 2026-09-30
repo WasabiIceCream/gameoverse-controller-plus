@@ -32,6 +32,7 @@ class GuidePlannerTest {
     static final class Ctx implements GuidePlanner.Context {
         int verbosity = 2;
         boolean scoped;
+        boolean byUse;
         final Set<String> down = new HashSet<>();
         final Map<String, Integer> levels = new HashMap<>(Map.of(
                 "spell_1", 2, "spell_2", 2, "spell_5", 2, "skills", 2, "guide", 2, "tier", 2,
@@ -39,6 +40,7 @@ class GuidePlannerTest {
 
         @Override public int verbosity() { return verbosity; }
         @Override public boolean scoped() { return scoped; }
+        @Override public boolean scopedByUse() { return byUse; }
         @Override public boolean isDown(String button) { return down.contains(button); }
         @Override public int level(String action) { return levels.getOrDefault(action, action.startsWith("zoom") ? 1 : 0); }
     }
@@ -130,5 +132,78 @@ class GuidePlannerTest {
         GuidePlanner.Plan plan = new GuidePlanner(List.of()).plan(new Ctx());
         assertTrue(plan.entries().isEmpty());
         assertTrue(plan.overridden().isEmpty());
+    }
+
+    // ---- 1.0.3 -----------------------------------------------------------------------------
+
+    @Test
+    void scopedHidesUseAndAttackAndOffersStopOnlyWhenHeldByUse() {
+        Ctx ctx = new Ctx();
+        ctx.scoped = true;
+        GuidePlanner.Plan plan = new GuidePlanner(LAYOUT).plan(ctx);
+        assertEquals(GuidePlanner.SCOPED_HIDDEN_BINDINGS, plan.hiddenBindings(), "Controlify's Zoom (LT) line is wrong while scoped");
+        assertTrue(plan.entries().stream().noneMatch(e -> e.form() == GuidePlanner.Form.STOP_SCOPE),
+                "scoped through the D-up toggle: LT does nothing, no line");
+        ctx.byUse = true;
+        plan = new GuidePlanner(LAYOUT).plan(ctx);
+        GuidePlanner.Entry stop = plan.entries().stream().filter(e -> e.form() == GuidePlanner.Form.STOP_SCOPE).findFirst().orElseThrow();
+        assertEquals(List.of(GuidePlanner.USE_BINDING), stop.buttons());
+        assertEquals(GuidePlanner.Side.RIGHT, stop.side());
+        ctx.scoped = false;
+        assertTrue(new GuidePlanner(LAYOUT).plan(ctx).hiddenBindings().isEmpty(), "nothing hidden outside a scope");
+    }
+
+    @Test
+    void scopedAstronomyButtonsListedAndTheirOwnEntriesHidden() {
+        List<Bind> layout = new java.util.ArrayList<>(LAYOUT);
+        layout.add(Bind.scoped(20, Y, 6, 2, "astronomy_mode", ActionMode.PRESS));
+        layout.add(Bind.scoped(21, X, 6, 2, "astronomy_info", ActionMode.PRESS));
+        Ctx ctx = new Ctx();
+        ctx.scoped = true;
+        ctx.levels.put("astronomy_mode", 1);
+        GuidePlanner.Plan plan = new GuidePlanner(layout).plan(ctx);
+        List<String> a = actions(plan);
+        assertTrue(a.contains("astronomy_mode"));
+        assertFalse(a.contains("astronomy_info"), "level 0 (not in select mode): no line");
+        assertFalse(a.contains("tier"), "Y's World Tier hold hidden while Y is an astronomy button");
+        assertTrue(plan.overridden().containsAll(Set.of(X, Y)), "Controlify's Swap Hands (X) and Inventory (Y) lines hidden");
+    }
+
+    static final String RS = "right_stick";
+    static final List<Bind> SCREEN_LAYOUT = List.of(
+            Bind.hold(0, Y, 8, "tier", ActionMode.PRESS),
+            Bind.tap(1, RS, "recipes", ActionMode.PRESS).in(InputContext.SCREEN),
+            Bind.hold(2, RS, 6, "uses", ActionMode.PRESS).in(InputContext.SCREEN),
+            Bind.tap(3, Y, "back", ActionMode.PRESS).in(InputContext.RECIPE_SCREEN));
+
+    record ScreenCtx(int verbosity, boolean recipeScreen, Map<String, Integer> levels) implements GuidePlanner.ScreenContext {
+        @Override public int level(String action) { return levels.getOrDefault(action, 0); }
+    }
+
+    @Test
+    void screenGuideListsScreenBindsOnly() {
+        GuidePlanner planner = new GuidePlanner(SCREEN_LAYOUT);
+        GuidePlanner.Plan plan = planner.planScreen(new ScreenCtx(2, false, Map.of("recipes", 2, "uses", 2, "back", 2, "tier", 2)));
+        assertEquals(List.of("recipes", "uses"), actions(plan));
+        assertEquals(GuidePlanner.Form.HOLD, plan.entries().get(1).form());
+        assertTrue(plan.entries().stream().allMatch(e -> e.side() == GuidePlanner.Side.RIGHT));
+        assertEquals(Set.of(RS), plan.overridden());
+        plan = planner.planScreen(new ScreenCtx(2, true, Map.of("recipes", 2, "uses", 2, "back", 2)));
+        assertEquals(List.of("recipes", "uses", "back"), actions(plan), "Back only in JEI's recipe screen");
+    }
+
+    @Test
+    void screenGuideSkipsActionsWithNothingToDo() {
+        GuidePlanner.Plan plan = new GuidePlanner(SCREEN_LAYOUT).planScreen(new ScreenCtx(2, false, Map.of()));
+        assertTrue(plan.entries().isEmpty(), "no item under the cursor: no Recipes/Uses lines");
+    }
+
+    @Test
+    void inGameGuideIgnoresScreenBinds() {
+        Ctx ctx = new Ctx();
+        ctx.levels.put("recipes", 2);
+        GuidePlanner.Plan plan = new GuidePlanner(SCREEN_LAYOUT).plan(ctx);
+        assertEquals(List.of("tier"), actions(plan));
+        assertFalse(plan.overridden().contains(Y), "the recipe screen's Y tap doesn't hide Controlify's in-game Y line");
     }
 }

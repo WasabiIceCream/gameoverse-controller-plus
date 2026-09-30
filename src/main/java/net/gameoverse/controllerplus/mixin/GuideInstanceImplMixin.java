@@ -17,7 +17,8 @@ import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Controlify's button guide (in-game domain only; screen guides are left alone). Controlify's API
+ * Controlify's button guide: the in-game guide and, since 1.0.3, the inventory/container screen
+ * guide (domain {@code controlify:container}; other domains are left alone). Controlify's API
  * lets mods add data-driven guide rules, but a rule shows one binding's glyph with fixed text, and
  * nothing in the API can hide another rule. Our lines need live text (spell names), two glyphs
  * (chords) and to replace entries our binds make wrong, so two small hooks into

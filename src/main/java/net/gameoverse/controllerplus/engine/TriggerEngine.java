@@ -24,7 +24,7 @@ import java.util.function.Predicate;
  *   <li>When a press resolves to a plain tap and the button has no TAP bind, the tap is replayed to
  *       the normal bindings as one pressed tick followed by one released tick.</li>
  *   <li>While the player is scoped, a button with a SCOPED bind is captured: a press fires only its
- *       SCOPED binds (repeating while held) and is held back from everything else, including layers
+ *       SCOPED binds (REPEAT mode repeats while held) and is held back from everything else, including layers
  *       and chords it would take part in. Scoping starting while such a button is already down
  *       cancels that press's pending tap or layer; scoping ending stops the repeats at once, and a
  *       captured button stays held back until released.</li>
@@ -412,13 +412,13 @@ public final class TriggerEngine {
         }
     }
 
-    /** Auto-repeat of a captured button's PRESS-mode SCOPED binds. */
+    /** Auto-repeat of a captured button's REPEAT-mode SCOPED binds (PRESS mode fires once, since 1.0.3). */
     private static void repeatTick(Plan p, State s, List<Event> events) {
         for (Bind bind : p.scoped) {
-            if (bind.mode() != ActionMode.PRESS && bind.mode() != ActionMode.REPEAT) continue;
+            if (bind.mode() != ActionMode.REPEAT) continue;
             int since = s.scopedT - bind.ticks();
             if (since >= 0 && since % bind.windowTicks() == 0) {
-                events.add(new Event(Kind.PRESS, bind));
+                events.add(new Event(Kind.REPEAT, bind));
             }
         }
     }

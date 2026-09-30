@@ -23,9 +23,17 @@ public final class ControllerPlusConfig {
     private static final Logger LOG = LoggerFactory.getLogger("gameoverse_controller_plus");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
-    public int version = 1;
+    /** 2 since 1.0.3: a Scoped bind in Press mode fires once; Repeat mode repeats. */
+    public static final int CURRENT_VERSION = 2;
+
+    public int version = CURRENT_VERSION;
     public boolean enabled = true;
     public boolean rumble = true;
+    /**
+     * Controlify's own continuous rumble while a spyglass is in use (its item-use rumble for the
+     * spyglass animation). Off by default: it buzzed for as long as the spyglass stayed up.
+     */
+    public boolean scopeRumble = false;
     /** A modifier held this long without a layer button does nothing on release. */
     public int modifierTapMs = 300;
     public boolean customized = false;
@@ -40,6 +48,7 @@ public final class ControllerPlusConfig {
         ControllerPlusConfig c = new ControllerPlusConfig();
         c.enabled = enabled;
         c.rumble = rumble;
+        c.scopeRumble = scopeRumble;
         c.modifierTapMs = modifierTapMs;
         c.customized = true; // the copy always holds the full list; normalize() decides on save
         for (BindEntry e : effectiveBinds()) c.binds.add(e.copy());
@@ -69,6 +78,7 @@ public final class ControllerPlusConfig {
                 if (c != null) {
                     if (c.binds == null) c.binds = new ArrayList<>();
                     c.binds.removeIf(e -> e == null);
+                    c.migrate();
                     return c;
                 }
             } catch (IOException | JsonParseException e) {
@@ -76,6 +86,22 @@ public final class ControllerPlusConfig {
             }
         }
         return new ControllerPlusConfig();
+    }
+
+    /**
+     * Version 1 (1.0.0-1.0.2) Scoped binds in Press mode repeated while held; since version 2 that is
+     * Repeat mode, and Press fires once. Keeps a customized zoom repeating.
+     */
+    void migrate() {
+        if (version < 2) {
+            for (BindEntry e : binds) {
+                if (e.type == net.gameoverse.controllerplus.engine.TriggerType.SCOPED
+                        && e.mode == net.gameoverse.controllerplus.engine.ActionMode.PRESS) {
+                    e.mode = net.gameoverse.controllerplus.engine.ActionMode.REPEAT;
+                }
+            }
+        }
+        version = CURRENT_VERSION;
     }
 
     public void save(Path file) {

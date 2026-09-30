@@ -3,6 +3,7 @@ package net.gameoverse.controllerplus.config;
 import java.util.Objects;
 import net.gameoverse.controllerplus.engine.ActionMode;
 import net.gameoverse.controllerplus.engine.Bind;
+import net.gameoverse.controllerplus.engine.InputContext;
 import net.gameoverse.controllerplus.engine.TriggerType;
 
 /**
@@ -25,6 +26,8 @@ public final class BindEntry {
     /** Controlify binding id, or one of this mod's action ids. */
     public String action = "controlify:jump";
     public ActionMode mode = ActionMode.PRESS;
+    /** Where the bind works: in game (default, and for configs from before 1.0.3) or in screens. */
+    public InputContext context = InputContext.GAME;
 
     public BindEntry() {
     }
@@ -43,9 +46,16 @@ public final class BindEntry {
         return e;
     }
 
+    /** Same as {@link #of}, in another context. */
+    public BindEntry in(InputContext where) {
+        context = where;
+        return this;
+    }
+
     public BindEntry copy() {
         BindEntry e = of(type, button, modifier, ms, count, windowMs, action, mode);
         e.enabled = enabled;
+        e.context = context;
         return e;
     }
 
@@ -56,11 +66,17 @@ public final class BindEntry {
     /** Null when the entry is disabled or incomplete. */
     public Bind compile(int id) {
         if (!enabled || type == null || mode == null || isBlank(button) || isBlank(action)) return null;
+        if (type == TriggerType.SCOPED && context() != InputContext.GAME) return null; // scoping is in game only
         Bind b = compileTrigger(id);
         if (b != null && mode == ActionMode.REPEAT && type != TriggerType.MULTI_TAP && type != TriggerType.SCOPED) {
             b = b.withWindowTicks(msToTicks(windowMs));
         }
-        return b;
+        return b == null ? null : b.in(context());
+    }
+
+    /** The context, GAME when the field is missing (configs from before 1.0.3). */
+    public InputContext context() {
+        return context == null ? InputContext.GAME : context;
     }
 
     private Bind compileTrigger(int id) {
@@ -90,7 +106,12 @@ public final class BindEntry {
             case CHORD -> b + " & " + m;
             case SCOPED -> "scoped " + b;
         };
-        return trigger + " -> " + shortName(action) + (mode == ActionMode.REPEAT ? " (repeat)" : "");
+        String where = switch (context()) {
+            case GAME -> "";
+            case SCREEN -> "[screens] ";
+            case RECIPE_SCREEN -> "[JEI recipes] ";
+        };
+        return where + trigger + " -> " + shortName(action) + (mode == ActionMode.REPEAT ? " (repeat)" : "");
     }
 
     public static String shortName(String id) {
@@ -110,7 +131,7 @@ public final class BindEntry {
                 && (type != TriggerType.MULTI_TAP || count == e.count)
                 && (type != TriggerType.MULTI_TAP && type != TriggerType.SCOPED && mode != ActionMode.REPEAT
                         || windowMs == e.windowMs)
-                && Objects.equals(action, e.action) && mode == e.mode;
+                && Objects.equals(action, e.action) && mode == e.mode && context() == e.context();
     }
 
     @Override

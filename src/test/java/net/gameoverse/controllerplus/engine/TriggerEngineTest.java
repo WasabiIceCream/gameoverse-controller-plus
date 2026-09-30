@@ -441,8 +441,8 @@ class TriggerEngineTest {
                 Bind.layer(1, LB, A, "spell1", ActionMode.HOLD_WHILE),
                 Bind.layer(2, RB, A, "spell5", ActionMode.HOLD_WHILE),
                 Bind.chord(3, LB, RB, "skills", ActionMode.PRESS),
-                Bind.scoped(4, RB, 6, 2, "scroll_up", ActionMode.PRESS),
-                Bind.scoped(5, LB, 6, 2, "scroll_down", ActionMode.PRESS));
+                Bind.scoped(4, RB, 6, 2, "scroll_up", ActionMode.REPEAT),
+                Bind.scoped(5, LB, 6, 2, "scroll_down", ActionMode.REPEAT));
     }
 
     static long count(List<TriggerEngine.Event> events, String action) {
@@ -604,6 +604,91 @@ class TriggerEngineTest {
         rig.scoped = false;
         assertEquals(TriggerEngine.Kind.STOP, only(rig.tick().events()).kind());
         assertTrue(rig.release(RB).events().isEmpty());
+    }
+
+    // ---- Scoped face buttons (1.0.3): Spyglass Astronomy, no hand swap ----------------------
+
+    /** The shipped face buttons: Y hold = World Tier, plus the scoped astronomy binds on Y/B/X. */
+    static Rig astronomyRig() {
+        return new Rig(6,
+                Bind.hold(1, Y, 8, "tier", ActionMode.PRESS),
+                Bind.scoped(2, Y, 6, 2, "astronomy_mode", ActionMode.PRESS),
+                Bind.scoped(3, B, 6, 2, "astronomy_use", ActionMode.HOLD_WHILE),
+                Bind.scoped(4, X, 6, 2, "astronomy_info", ActionMode.PRESS),
+                Bind.layer(5, LB, X, "spell2", ActionMode.HOLD_WHILE));
+    }
+
+    @Test
+    void scopedPressFiresOnceWithoutRepeat() {
+        Rig rig = astronomyRig();
+        rig.scoped = true;
+        TriggerEngine.Result r = rig.press(X);
+        assertEquals("astronomy_info", only(r.events()).bind().action());
+        assertTrue(r.masked().contains(X), "swap hands (X) never sees the press");
+        assertTrue(rig.idle(20).isEmpty(), "Press mode doesn't repeat while held");
+        r = rig.release(X);
+        assertTrue(r.events().isEmpty() && r.replay().isEmpty(), "no swap on release either");
+    }
+
+    @Test
+    void scopedYCyclesModeInsteadOfInventoryOrWorldTier() {
+        Rig rig = astronomyRig();
+        rig.scoped = true;
+        assertEquals("astronomy_mode", only(rig.press(Y).events()).bind().action());
+        assertTrue(rig.idle(12).isEmpty(), "no World Tier after the hold time");
+        TriggerEngine.Result r = rig.release(Y);
+        assertTrue(r.events().isEmpty() && r.replay().isEmpty(), "no inventory tap");
+    }
+
+    @Test
+    void scopedBHoldsDrawUntilReleased() {
+        Rig rig = astronomyRig();
+        rig.scoped = true;
+        TriggerEngine.Result r = rig.press(B);
+        TriggerEngine.Event e = only(r.events());
+        assertEquals(TriggerEngine.Kind.START, e.kind());
+        assertEquals("astronomy_use", e.bind().action());
+        assertTrue(r.masked().contains(B), "no combat roll while scoped");
+        assertTrue(rig.idle(10).isEmpty());
+        assertEquals(TriggerEngine.Kind.STOP, only(rig.release(B).events()).kind());
+    }
+
+    @Test
+    void scopeEndingWhileDrawingStopsTheDraw() {
+        Rig rig = astronomyRig();
+        rig.scoped = true;
+        rig.press(B);
+        rig.scoped = false;
+        TriggerEngine.Result r = rig.tick();
+        assertEquals(TriggerEngine.Kind.STOP, only(r.events()).kind());
+        assertTrue(r.masked().contains(B), "still held back until released");
+        assertTrue(rig.release(B).events().isEmpty());
+    }
+
+    @Test
+    void faceButtonsAreNormalOutsideAScope() {
+        Rig rig = astronomyRig();
+        TriggerEngine.Result r = rig.press(X);
+        assertTrue(r.events().isEmpty());
+        assertFalse(r.masked().contains(X), "X swaps hands as usual, no delay");
+        rig.release(X);
+        r = rig.press(B);
+        assertFalse(r.masked().contains(B), "B (roll) untouched outside a scope");
+        rig.release(B);
+        rig.press(Y);
+        r = rig.release(Y);
+        assertTrue(r.replay().contains(Y), "Y tap still opens the inventory");
+        rig.press(LB);
+        assertEquals("spell2", only(rig.press(X).events()).bind().action(), "LB+X still casts");
+    }
+
+    @Test
+    void aStillJumpsWhileScoped() {
+        Rig rig = astronomyRig();
+        rig.scoped = true;
+        TriggerEngine.Result r = rig.press(A);
+        assertTrue(r.events().isEmpty());
+        assertTrue(Rig.sees(r, A, true));
     }
 
     // ---- REPEAT / D-pad layout (1.0.2) ------------------------------------------------------

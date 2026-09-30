@@ -28,7 +28,19 @@ public final class GuidePlanner {
     public enum Side { LEFT, RIGHT }
 
     /** How the entry reads: which buttons, and whether it is a hold, a layer summary, ... */
-    public enum Form { TAP, HOLD, MULTI_TAP, CHORD, SCOPED, LAYER_BUTTON, LAYER_SUMMARY }
+    public enum Form {
+        TAP, HOLD, MULTI_TAP, CHORD, SCOPED, LAYER_BUTTON, LAYER_SUMMARY,
+        /**
+         * "Stop" on the binding whose release ends the scope (the use trigger, LT, when the spyglass is
+         * held up with it). {@code buttons} holds that Controlify binding id, not a button.
+         */
+        STOP_SCOPE
+    }
+
+    /** Controlify's use binding: LT by default. */
+    public static final String USE_BINDING = "controlify:use";
+    /** Controlify bindings whose own guide entries are wrong while scoped (a spyglass in use ignores attacks). */
+    public static final Set<String> SCOPED_HIDDEN_BINDINGS = Set.of(USE_BINDING, "controlify:attack");
 
     /**
      * One guide line.
@@ -48,6 +60,14 @@ public final class GuidePlanner {
 
         boolean scoped();
 
+        /**
+         * Scoped because the use binding (LT) is held with a spyglass, so releasing it stops. False
+         * when the spyglass is up through the spyglass key (our D-up toggle), where LT does nothing.
+         */
+        default boolean scopedByUse() {
+            return false;
+        }
+
         /** Whether the button is physically held. */
         boolean isDown(String button);
 
@@ -58,8 +78,26 @@ public final class GuidePlanner {
         int level(String action);
     }
 
-    /** The planner's answer. {@code overridden}: buttons whose own Controlify guide entries are wrong now. */
-    public record Plan(List<Entry> entries, Set<String> overridden) {
+    /**
+     * The planner's answer. {@code overridden}: buttons whose own Controlify guide entries are wrong
+     * now; {@code hiddenBindings}: Controlify binding ids whose entries are wrong now, whatever
+     * they are bound to.
+     */
+    public record Plan(List<Entry> entries, Set<String> overridden, Set<String> hiddenBindings) {
+        public Plan(List<Entry> entries, Set<String> overridden) {
+            this(entries, overridden, Set.of());
+        }
+    }
+
+    /** What the screen guide needs to know. */
+    public interface ScreenContext {
+        int verbosity();
+
+        /** Whether the screen is JEI's recipe screen (RECIPE_SCREEN binds apply). */
+        boolean recipeScreen();
+
+        /** As {@link Context#level}. */
+        int level(String action);
     }
 
     private final List<Bind> binds;
@@ -71,8 +109,12 @@ public final class GuidePlanner {
     /** Buttons whose tap no longer reaches their normal Controlify binding. */
     private final Set<String> tapReplaced = new LinkedHashSet<>();
 
-    public GuidePlanner(List<Bind> binds) {
-        this.binds = List.copyOf(binds);
+    private final List<Bind> screenBinds;
+
+    public GuidePlanner(List<Bind> all) {
+        List<Bind> binds = all.stream().filter(b -> b.context() == InputContext.GAME).toList();
+        this.binds = binds;
+        this.screenBinds = all.stream().filter(b -> b.context() != InputContext.GAME).toList();
         for (Bind b : binds) {
             switch (b.type()) {
                 case LAYER -> layers.computeIfAbsent(b.other(), k -> new ArrayList<>()).add(b);
@@ -98,9 +140,12 @@ public final class GuidePlanner {
                     out.add(new Entry(Side.LEFT, Form.SCOPED, List.of(b.button()), b.action(), 0));
                 }
             }
+            if (ctx.scopedByUse()) {
+                out.add(new Entry(Side.RIGHT, Form.STOP_SCOPE, List.of(USE_BINDING), USE_BINDING, 0));
+            }
             overridden.addAll(scopedButtons);
             general(ctx, out, scopedButtons);
-            return new Plan(List.copyOf(out), Set.copyOf(overridden));
+            return new Plan(List.copyOf(out), Set.copyOf(overridden), SCOPED_HIDDEN_BINDINGS);
         }
 
         String heldModifier = null;
@@ -137,6 +182,33 @@ public final class GuidePlanner {
             }
         }
         general(ctx, out, Set.of());
+        return new Plan(List.copyOf(out), Set.copyOf(overridden));
+    }
+
+    /**
+     * The screen guide (Controlify's container guide): the screen binds worth a line now, on the
+     * right. Buttons they use hide Controlify's own entries for them.
+     */
+    public Plan planScreen(ScreenContext ctx) {
+        List<Entry> out = new ArrayList<>();
+        Set<String> overridden = new LinkedHashSet<>();
+        for (Bind b : screenBinds) {
+            if (b.context() == InputContext.RECIPE_SCREEN && !ctx.recipeScreen()) continue;
+            Form form = switch (b.type()) {
+                case TAP -> Form.TAP;
+                case HOLD -> Form.HOLD;
+                case MULTI_TAP -> Form.MULTI_TAP;
+                case CHORD -> Form.CHORD;
+                default -> null;
+            };
+            if (form == null) continue;
+            overridden.add(b.button());
+            if (form == Form.CHORD) overridden.add(b.other());
+            int level = ctx.level(b.action());
+            if (level <= 0 || level > ctx.verbosity()) continue;
+            List<String> buttons = form == Form.CHORD ? List.of(b.button(), b.other()) : List.of(b.button());
+            out.add(new Entry(Side.RIGHT, form, buttons, b.action(), form == Form.MULTI_TAP ? b.count() : 0));
+        }
         return new Plan(List.copyOf(out), Set.copyOf(overridden));
     }
 

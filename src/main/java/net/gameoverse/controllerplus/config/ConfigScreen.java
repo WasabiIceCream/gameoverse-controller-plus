@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.TreeSet;
 import net.gameoverse.controllerplus.client.ControllerPlus;
 import net.gameoverse.controllerplus.engine.ActionMode;
+import net.gameoverse.controllerplus.engine.InputContext;
 import net.gameoverse.controllerplus.engine.TriggerType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -61,6 +62,10 @@ public final class ConfigScreen {
                         .name(tr("rumble")).description(desc("rumble"))
                         .binding(true, () -> work.rumble, v -> work.rumble = v)
                         .controller(TickBoxControllerBuilder::create).build())
+                .option(Option.<Boolean>createBuilder()
+                        .name(tr("scope_rumble")).description(desc("scope_rumble"))
+                        .binding(false, () -> work.scopeRumble, v -> work.scopeRumble = v)
+                        .controller(TickBoxControllerBuilder::create).build())
                 .option(Option.<Integer>createBuilder()
                         .name(tr("modifier_tap_ms")).description(desc("modifier_tap_ms"))
                         .binding(300, () -> work.modifierTapMs, v -> work.modifierTapMs = v)
@@ -94,6 +99,12 @@ public final class ConfigScreen {
                             .name(tr("bind.enabled"))
                             .binding(d.enabled, () -> e.enabled, v -> e.enabled = v)
                             .controller(TickBoxControllerBuilder::create).build())
+                    .option(Option.<InputContext>createBuilder()
+                            .name(tr("bind.context")).description(desc("bind.context"))
+                            .binding(d.context, e::context, v -> e.context = v)
+                            .controller(o -> EnumControllerBuilder.create(o).enumClass(InputContext.class)
+                                    .formatValue(v -> tr("context." + v.name().toLowerCase())))
+                            .build())
                     .option(Option.<TriggerType>createBuilder()
                             .name(tr("bind.type")).description(desc("bind.type"))
                             .binding(d.type, () -> e.type, v -> e.type = v)
@@ -203,6 +214,12 @@ public final class ConfigScreen {
         out.add(Defaults.SCROLL_UP);
         out.add(Defaults.SCROLL_DOWN);
         out.add(Defaults.DROP_ONE);
+        out.add(Defaults.ASTRONOMY_MODE);
+        out.add(Defaults.ASTRONOMY_USE);
+        out.add(Defaults.ASTRONOMY_INFO);
+        out.add(Defaults.JEI_SHOW_RECIPE);
+        out.add(Defaults.JEI_SHOW_USES);
+        out.add(Defaults.JEI_RECIPE_BACK);
         out.addAll(ids);
         return out;
     }

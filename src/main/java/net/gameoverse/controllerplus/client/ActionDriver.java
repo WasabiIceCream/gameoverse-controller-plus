@@ -7,12 +7,15 @@ import dev.isxander.controlify.rumble.BasicRumbleEffect;
 import dev.isxander.controlify.rumble.RumbleSource;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import net.fabricmc.loader.api.FabricLoader;
+import net.gameoverse.controllerplus.compat.ScreenKeys;
 import net.gameoverse.controllerplus.compat.SpellSlots;
+import net.gameoverse.controllerplus.compat.SpyglassAstronomy;
 import net.gameoverse.controllerplus.config.Defaults;
 import net.gameoverse.controllerplus.engine.Bind;
 import net.gameoverse.controllerplus.engine.TriggerEngine;
@@ -33,6 +36,8 @@ final class ActionDriver {
     private final Map<Integer, KeyMapping> heldKeys = new HashMap<>();
     private final Map<Integer, Identifier> forcedByBind = new HashMap<>();
     private final Map<KeyMapping, Integer> pulses = new HashMap<>();
+    /** Screen key presses, sent at the end of the client tick (not in the middle of Controlify's state push). */
+    private final List<String> pendingScreenKeys = new ArrayList<>();
     private final Map<String, Identifier> ids = new HashMap<>();
     private final Set<String> warned = new HashSet<>();
     boolean rumble = true;
@@ -68,6 +73,17 @@ final class ActionDriver {
         if (Defaults.SCROLL_UP.equals(bind.action()) || Defaults.SCROLL_DOWN.equals(bind.action())) {
             // Every press or repeat is one wheel notch; Hold While and Toggle just step once on start.
             if (e.kind() != TriggerEngine.Kind.STOP) Scoping.scrollStep(Defaults.SCROLL_UP.equals(bind.action()) ? 1 : -1);
+            return;
+        }
+        if (bind.action().startsWith(Defaults.KEY_PRESS)) {
+            if (e.kind() != TriggerEngine.Kind.STOP) {
+                rumble(e, bind, controller, rumble);
+                pendingScreenKeys.add(bind.action().substring(Defaults.KEY_PRESS.length()));
+            }
+            return;
+        }
+        if (bind.action().startsWith(ASTRONOMY)) {
+            astronomy(e, bind, controller);
             return;
         }
         int spellSlot = spellSlot(bind.action());
@@ -142,8 +158,73 @@ final class ActionDriver {
         drop.gcp$setClickCount(drop.gcp$getClickCount() + 1);
     }
 
+    private static final String ASTRONOMY = "gameoverse_controller_plus:astronomy_";
+
+    /**
+     * Spyglass Astronomy's inputs, through the vanilla keys it polls (see {@code compat.SpyglassAstronomy}):
+     * mode = a short hold of the pick key (never a click, so nothing is picked), use = the attack key
+     * held while its mode draws or selects, info = its {@code /sga:info} client command.
+     */
+    private void astronomy(TriggerEngine.Event e, Bind bind, ControllerEntity controller) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) return;
+        switch (bind.action()) {
+            case Defaults.ASTRONOMY_MODE -> {
+                if (e.kind() == TriggerEngine.Kind.STOP || !SpyglassAstronomy.LOADED) return;
+                KeyMapping pick = mc.options.keyPickItem;
+                pick.setDown(true);
+                pulses.put(pick, PULSE_TICKS);
+            }
+            case Defaults.ASTRONOMY_USE -> {
+                KeyMapping attack = mc.options.keyAttack;
+                switch (e.kind()) {
+                    case START, PRESS -> {
+                        if (SpyglassAstronomy.editMode() <= 0) return; // normal mode: nothing to draw or select
+                        attack.setDown(true);
+                        if (e.kind() == TriggerEngine.Kind.START) heldKeys.put(bind.id(), attack);
+                        else pulses.put(attack, PULSE_TICKS);
+                    }
+                    case STOP -> {
+                        KeyMapping key = heldKeys.remove(bind.id());
+                        // Leave it down if RT (Controlify's attack, which also drives this key) is held.
+                        if (key != null && !heldKeys.containsValue(key) && !pulses.containsKey(key)
+                                && !bindingDown(controller, "controlify:attack")) {
+                            key.setDown(false);
+                        }
+                    }
+                    default -> {
+                    }
+                }
+            }
+            case Defaults.ASTRONOMY_INFO -> {
+                if (e.kind() != TriggerEngine.Kind.STOP && SpyglassAstronomy.LOADED && mc.getConnection() != null) {
+                    // A Fabric client command: Fabric's ClientPacketListener hook runs it locally.
+                    mc.getConnection().sendCommand("sga:info");
+                }
+            }
+            default -> warnOnce(bind.action(), "Unknown action {}", bind.action());
+        }
+    }
+
+    private boolean bindingDown(ControllerEntity controller, String bindingId) {
+        Identifier id = id(bindingId);
+        InputBinding binding = controller == null || id == null ? null : controller.input().map(i -> i.getBinding(id)).orElse(null);
+        return binding != null && binding.digitalNow();
+    }
+
     /** Once per client tick: keep held spell keys down, end short presses. */
     void tick() {
+        if (!pendingScreenKeys.isEmpty()) {
+            List<String> keys = List.copyOf(pendingScreenKeys);
+            pendingScreenKeys.clear();
+            for (String key : keys) {
+                try {
+                    ScreenKeys.press(key);
+                } catch (RuntimeException | LinkageError ex) {
+                    warnOnce(key + ":error", "Screen key {} failed: {}", key, ex.toString());
+                }
+            }
+        }
         for (KeyMapping key : heldKeys.values()) {
             if (!key.isDown()) key.setDown(true);
         }
@@ -161,6 +242,7 @@ final class ActionDriver {
 
     /** Drops everything still held (used after all engines were reset). */
     void releaseAll() {
+        pendingScreenKeys.clear();
         for (KeyMapping key : heldKeys.values()) key.setDown(false);
         heldKeys.clear();
         for (KeyMapping key : pulses.keySet()) key.setDown(false);

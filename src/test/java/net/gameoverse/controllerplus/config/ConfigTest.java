@@ -1,0 +1,59 @@
+package net.gameoverse.controllerplus.config;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+
+import java.util.List;
+import net.gameoverse.controllerplus.engine.ActionMode;
+import net.gameoverse.controllerplus.engine.Bind;
+import net.gameoverse.controllerplus.engine.InputContext;
+import net.gameoverse.controllerplus.engine.TriggerType;
+import org.junit.jupiter.api.Test;
+
+class ConfigTest {
+    @Test
+    void defaultsCompileWithTheirContexts() {
+        List<BindEntry> defaults = Defaults.binds();
+        long screen = 0, recipe = 0;
+        for (int i = 0; i < defaults.size(); i++) {
+            Bind b = defaults.get(i).compile(i);
+            assertNotNull(b, "default " + defaults.get(i).summary());
+            if (b.context() == InputContext.SCREEN) screen++;
+            if (b.context() == InputContext.RECIPE_SCREEN) recipe++;
+        }
+        assertEquals(2, screen);
+        assertEquals(1, recipe);
+        assertEquals(25, defaults.size());
+    }
+
+    @Test
+    void missingContextMeansGame() {
+        BindEntry e = BindEntry.of(TriggerType.TAP, "a", null, 0, 2, 250, "x", ActionMode.PRESS);
+        e.context = null; // a pre-1.0.3 file
+        assertEquals(InputContext.GAME, e.compile(0).context());
+        assertEquals(e, BindEntry.of(TriggerType.TAP, "a", null, 0, 2, 250, "x", ActionMode.PRESS));
+    }
+
+    @Test
+    void scopedBindsAreGameOnly() {
+        BindEntry e = BindEntry.of(TriggerType.SCOPED, "a", null, 300, 2, 100, "x", ActionMode.PRESS).in(InputContext.SCREEN);
+        assertNull(e.compile(0));
+    }
+
+    @Test
+    void version1ScopedPressBecomesRepeat() {
+        ControllerPlusConfig c = new ControllerPlusConfig();
+        c.version = 1;
+        c.customized = true;
+        c.binds.add(BindEntry.of(TriggerType.SCOPED, "rb", null, 300, 2, 100, Defaults.SCROLL_UP, ActionMode.PRESS));
+        c.binds.add(BindEntry.of(TriggerType.TAP, "a", null, 0, 2, 250, "x", ActionMode.PRESS));
+        c.migrate();
+        assertEquals(ActionMode.REPEAT, c.binds.get(0).mode, "zoom keeps repeating");
+        assertEquals(ActionMode.PRESS, c.binds.get(1).mode);
+        assertEquals(ControllerPlusConfig.CURRENT_VERSION, c.version);
+        c.binds.get(0).mode = ActionMode.PRESS;
+        c.migrate();
+        assertEquals(ActionMode.PRESS, c.binds.get(0).mode, "a version 2 file is left alone");
+    }
+}

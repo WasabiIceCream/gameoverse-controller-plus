@@ -2,6 +2,7 @@ package net.gameoverse.controllerplus.client;
 
 import dev.isxander.controlify.Controlify;
 import dev.isxander.controlify.api.bind.InputBinding;
+import dev.isxander.controlify.api.contextual.ContainerContext;
 import dev.isxander.controlify.api.contextual.Context;
 import dev.isxander.controlify.contextual.GuideRule;
 import dev.isxander.controlify.controller.ControllerEntity;
@@ -15,9 +16,12 @@ import java.util.List;
 import java.util.Map;
 import net.fabricmc.loader.api.FabricLoader;
 import net.gameoverse.controllerplus.compat.SpellSlots;
+import net.gameoverse.controllerplus.compat.SpyglassAstronomy;
 import net.gameoverse.controllerplus.config.BindEntry;
 import net.gameoverse.controllerplus.config.Defaults;
 import net.gameoverse.controllerplus.engine.GuidePlanner;
+import net.gameoverse.controllerplus.engine.InputContext;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.player.LocalPlayer;
@@ -45,6 +49,8 @@ import org.slf4j.LoggerFactory;
 public final class ButtonGuide {
     private static final Logger LOG = LoggerFactory.getLogger(ControllerPlus.MOD_ID);
     private static final Identifier IN_GAME = Identifier.fromNamespaceAndPath("controlify", "in_game");
+    /** Controlify's inventory/container screen guide (same GuideInstanceImpl, other rules). */
+    private static final Identifier CONTAINER = Identifier.fromNamespaceAndPath("controlify", "container");
     private static final String K = "gameoverse_controller_plus.guide.";
     private static final int GLYPH_HEIGHT = 15;
 
@@ -71,24 +77,33 @@ public final class ButtonGuide {
     /** Controlify's winning guide rules for this update, minus the ones our binds make wrong. */
     public static List<GuideRule> filter(List<GuideRule> rules, Identifier domainId, Context context) {
         lastPlan = null;
-        if (failed || rules == null || !IN_GAME.equals(domainId)) return rules;
-        updates++;
+        boolean inGame = IN_GAME.equals(domainId);
+        if (failed || rules == null || !inGame && !CONTAINER.equals(domainId)) return rules;
+        if (inGame) updates++;
         try {
             GuidePlanner planner = ControllerPlus.get().guidePlanner();
             ControllerEntity controller = context.controller();
             if (planner == null || controller == null) return rules;
-            GuidePlanner.Plan plan = planner.plan(new Facts(controller, context.verbosity().getLevel()));
+            GuidePlanner.Plan plan;
+            if (inGame) {
+                plan = planner.plan(new Facts(controller, context.verbosity().getLevel()));
+            } else {
+                Minecraft mc = Minecraft.getInstance();
+                if (!Contexts.of(mc.screen).contains(InputContext.SCREEN)) return rules;
+                boolean item = context instanceof ContainerContext cc && cc.hoveredSlot() != null && cc.hoveredSlot().hasItem();
+                plan = planner.planScreen(new ScreenFacts(context.verbosity().getLevel(), Contexts.isJeiRecipes(mc.screen), item));
+            }
             lastPlan = plan;
             lastController = controller;
             if (!announced) {
                 announced = true;
                 LOG.info("Controlify in-game button guide: showing advanced binds");
             }
-            if (plan.overridden().isEmpty()) return rules;
+            if (plan.overridden().isEmpty() && plan.hiddenBindings().isEmpty()) return rules;
             List<GuideRule> kept = new ArrayList<>(rules.size());
             for (GuideRule rule : rules) {
                 InputBinding binding = rule.binding().onOrNull(controller);
-                if (binding != null && isOverridden(binding, plan)) continue;
+                if (binding != null && (isOverridden(binding, plan) || plan.hiddenBindings().contains(binding.id().toString()))) continue;
                 kept.add(rule);
             }
             return kept;
@@ -106,7 +121,8 @@ public final class ButtonGuide {
         GuidePlanner.Plan plan = lastPlan;
         ControllerEntity controller = lastController;
         lastPlan = null;
-        if (failed || plan == null || controller == null || !IN_GAME.equals(domainId) || plan.entries().isEmpty()) return null;
+        if (failed || plan == null || controller == null || !IN_GAME.equals(domainId) && !CONTAINER.equals(domainId)
+                || plan.entries().isEmpty()) return null;
         try {
             PrecomputedLines.Builder l = copy(left);
             PrecomputedLines.Builder r = copy(right);
@@ -116,7 +132,13 @@ public final class ButtonGuide {
                 Component label = label(e, controller);
                 if (label == null) continue;
                 MutableComponent glyph = Component.empty();
-                for (int i = 0; i < e.buttons().size(); i++) {
+                if (e.form() == GuidePlanner.Form.STOP_SCOPE) {
+                    // The glyph of whatever the use binding is bound to (LT by default).
+                    InputBinding use = binding(GuidePlanner.USE_BINDING, controller);
+                    if (use == null || use.isUnbound()) continue;
+                    glyph.append(use.inputGlyph());
+                }
+                for (int i = 0; e.form() != GuidePlanner.Form.STOP_SCOPE && i < e.buttons().size(); i++) {
                     if (i > 0) glyph.append("+");
                     Identifier button = Identifier.tryParse(e.buttons().get(i));
                     if (button != null) glyph.append(fonts.getComponentFromInputs(ns, List.of(button)));
@@ -160,9 +182,13 @@ public final class ButtonGuide {
     }
 
     private static Component label(GuidePlanner.Entry e, ControllerEntity controller) {
+        if (e.form() == GuidePlanner.Form.STOP_SCOPE) return Component.translatable(K + "stop_scope");
         int spell = ActionDriver.spellSlot(e.action());
         Component name;
-        if (spell > 0) {
+        if (e.action().startsWith("gameoverse_controller_plus:astronomy_")) {
+            name = astronomyName(e.action());
+            if (name == null) return null;
+        } else if (spell > 0) {
             if (e.form() == GuidePlanner.Form.LAYER_SUMMARY) {
                 name = Component.translatable(K + (spell <= 4 ? "spells" : "more_spells"));
             } else {
@@ -178,6 +204,18 @@ public final class ButtonGuide {
             case HOLD, LAYER_SUMMARY -> Component.translatable(K + "hold", name);
             case MULTI_TAP -> Component.translatable(K + "multi_tap", e.count(), name);
             default -> name;
+        };
+    }
+
+    /** What the Spyglass Astronomy button does next, by its current mode (0 normal, 1 draw, 2 select). */
+    private static Component astronomyName(String action) {
+        int mode = SpyglassAstronomy.editMode();
+        if (mode < 0) return null;
+        return switch (action) {
+            case Defaults.ASTRONOMY_MODE -> Component.translatable(K + "astronomy.mode." + (mode + 1) % 3);
+            case Defaults.ASTRONOMY_USE -> mode == 0 ? null : Component.translatable(K + "astronomy.use." + mode);
+            case Defaults.ASTRONOMY_INFO -> Component.translatable(K + "astronomy.info");
+            default -> null;
         };
     }
 
@@ -211,6 +249,19 @@ public final class ButtonGuide {
         }
 
         @Override
+        public boolean scopedByUse() {
+            // LT held with the spyglass up, and not through the spyglass key (our D-up toggle holds that
+            // key, and Spyglass Improvements then keeps the spyglass up whatever LT does).
+            KeyMapping spyglassKey = KeyMapping.get("key.spyglass-improvements.use");
+            if (spyglassKey != null && spyglassKey.isDown()) return false;
+            Identifier toggle = ControllerPlus.get().id("controlify_modded:key.spyglass-improvements.use");
+            if (toggle != null && Hooks.isForced(toggle)) return false;
+            InputBinding use = binding(GuidePlanner.USE_BINDING, controller);
+            LocalPlayer player = Minecraft.getInstance().player;
+            return use != null && use.digitalNow() && player != null && player.isUsingItem();
+        }
+
+        @Override
         public boolean isDown(String button) {
             Identifier id = ControllerPlus.get().id(button);
             InputComponent input = controller.input().orElse(null);
@@ -229,6 +280,16 @@ public final class ButtonGuide {
             int spell = ActionDriver.spellSlot(action);
             if (spell > 0) return SPELL_ENGINE && SpellSlots.name(spell) != null ? 2 : 0;
             if (Defaults.SCROLL_UP.equals(action) || Defaults.SCROLL_DOWN.equals(action)) return 1;
+            if (action.startsWith("gameoverse_controller_plus:astronomy_")) {
+                // Only while the spyglass is up (these are Scoped binds); use and info only in the modes they work in.
+                int mode = SpyglassAstronomy.editMode();
+                if (mode < 0) return 0;
+                return switch (action) {
+                    case Defaults.ASTRONOMY_USE -> mode == 0 ? 0 : 1;
+                    case Defaults.ASTRONOMY_INFO -> mode == 2 ? 1 : 0;
+                    default -> 1;
+                };
+            }
             if (Defaults.DROP_ONE.equals(action) || action.equals("controlify:drop") || action.equals("controlify:drop_stack")) {
                 return player.getMainHandItem().isEmpty() ? 0 : 2;
             }
@@ -244,6 +305,22 @@ public final class ButtonGuide {
                      "controlify_modded:key.apotheosis.open_world_tier_select" -> 2;
                 default -> 3;
             };
+        }
+    }
+
+    /** Facts for the container guide. */
+    private record ScreenFacts(int verbosity, boolean recipeScreen, boolean hoveringItem) implements GuidePlanner.ScreenContext {
+        @Override
+        public int level(String action) {
+            if (action.startsWith(Defaults.KEY_PRESS)) {
+                KeyMapping key = KeyMapping.get(action.substring(Defaults.KEY_PRESS.length()));
+                if (key == null || key.isUnbound()) return 0;
+                if (action.equals(Defaults.JEI_SHOW_RECIPE) || action.equals(Defaults.JEI_SHOW_USES)) {
+                    return hoveringItem ? 2 : 0;
+                }
+                return 2;
+            }
+            return 3;
         }
     }
 }

@@ -7,6 +7,7 @@ import static net.gameoverse.controllerplus.engine.ActionMode.TOGGLE;
 
 import java.util.ArrayList;
 import java.util.List;
+import net.gameoverse.controllerplus.engine.InputContext;
 import net.gameoverse.controllerplus.engine.TriggerType;
 
 /**
@@ -21,6 +22,23 @@ public final class Defaults {
     public static final String SCROLL_DOWN = "gameoverse_controller_plus:scroll_down";
     /** One click of vanilla's Drop key ({@code key.drop}): one item from the held stack. */
     public static final String DROP_ONE = "gameoverse_controller_plus:drop_one";
+    /**
+     * Spyglass Astronomy (1.0.3), while scoped: cycle its mode (normal, draw constellations, select
+     * stars), hold to draw or select (its "attack" input), and show info on the selection
+     * ({@code /sga:info}). See {@code compat.SpyglassAstronomy}.
+     */
+    public static final String ASTRONOMY_MODE = "gameoverse_controller_plus:astronomy_mode";
+    public static final String ASTRONOMY_USE = "gameoverse_controller_plus:astronomy_use";
+    public static final String ASTRONOMY_INFO = "gameoverse_controller_plus:astronomy_info";
+    /**
+     * Prefix of "press the key bound to KeyMapping NAME", delivered to the open screen the way a real
+     * key press is (Minecraft's KeyboardHandler, so JEI and other mods' screen key handlers see it).
+     * NAME is the KeyMapping name, e.g. {@code key.jei.showRecipe}.
+     */
+    public static final String KEY_PRESS = "gameoverse_controller_plus:key_press/";
+    public static final String JEI_SHOW_RECIPE = KEY_PRESS + "key.jei.showRecipe";
+    public static final String JEI_SHOW_USES = KEY_PRESS + "key.jei.showUses";
+    public static final String JEI_RECIPE_BACK = KEY_PRESS + "key.jei.recipeBack";
 
     private Defaults() {
     }
@@ -64,8 +82,24 @@ public final class Defaults {
                 "controlify:pick_block", PRESS));
         // While scoped (spyglass, Spyglass Improvements, Ok Zoomer): RB zooms in, LB zooms out, one
         // wheel notch per press, repeating after 300 ms every 100 ms. LB/RB do nothing else then.
-        list.add(BindEntry.of(TriggerType.SCOPED, BTN + "right_shoulder", null, 300, 2, 100, SCROLL_UP, PRESS));
-        list.add(BindEntry.of(TriggerType.SCOPED, BTN + "left_shoulder", null, 300, 2, 100, SCROLL_DOWN, PRESS));
+        // (Repeat mode: until 1.0.2 a Scoped bind in Press mode repeated; now Press fires once.)
+        list.add(BindEntry.of(TriggerType.SCOPED, BTN + "right_shoulder", null, 300, 2, 100, SCROLL_UP, REPEAT));
+        list.add(BindEntry.of(TriggerType.SCOPED, BTN + "left_shoulder", null, 300, 2, 100, SCROLL_DOWN, REPEAT));
+        // While scoped, the face buttons other than A (jump stays) drive Spyglass Astronomy: Y cycles
+        // its mode, B held draws a constellation line / selects (like RT), X shows the selection's
+        // info. X also stops swapping hands while scoped (Controlify's swap_hands is on X).
+        list.add(BindEntry.of(TriggerType.SCOPED, BTN + "north", null, 300, 2, 100, ASTRONOMY_MODE, PRESS));
+        list.add(BindEntry.of(TriggerType.SCOPED, BTN + "east", null, 300, 2, 100, ASTRONOMY_USE, HOLD_WHILE));
+        list.add(BindEntry.of(TriggerType.SCOPED, BTN + "west", null, 300, 2, 100, ASTRONOMY_INFO, PRESS));
+        // Inventory/container screens and JEI's recipe screen: RS shows the recipes for the item under
+        // the cursor, held RS its uses (JEI's R / U keys). RS does nothing in Controlify's screens.
+        list.add(BindEntry.of(TriggerType.TAP, BTN + "right_stick", null, 0, 2, 250, JEI_SHOW_RECIPE, PRESS)
+                .in(InputContext.SCREEN));
+        list.add(BindEntry.of(TriggerType.HOLD, BTN + "right_stick", null, 300, 2, 250, JEI_SHOW_USES, PRESS)
+                .in(InputContext.SCREEN));
+        // JEI's recipe screen: Y goes back to the previously shown recipes (B still closes it).
+        list.add(BindEntry.of(TriggerType.TAP, BTN + "north", null, 0, 2, 250, JEI_RECIPE_BACK, PRESS)
+                .in(InputContext.RECIPE_SCREEN));
         return list;
     }
 }

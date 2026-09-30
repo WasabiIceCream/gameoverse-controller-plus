@@ -14,6 +14,8 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.gameoverse.controllerplus.config.BindEntry;
 import net.gameoverse.controllerplus.config.ControllerPlusConfig;
 import net.gameoverse.controllerplus.engine.Bind;
+import net.gameoverse.controllerplus.engine.EngineSet;
+import net.gameoverse.controllerplus.engine.InputContext;
 import net.gameoverse.controllerplus.engine.GuidePlanner;
 import net.gameoverse.controllerplus.engine.TriggerEngine;
 import net.minecraft.client.Minecraft;
@@ -37,11 +39,11 @@ public final class ControllerPlus {
     private int modifierTapTicks = 6;
 
     private static final class Slot {
-        final TriggerEngine engine;
+        final EngineSet engine;
         final ControllerEntity controller;
         boolean hardActive;
 
-        Slot(TriggerEngine engine, ControllerEntity controller) {
+        Slot(EngineSet engine, ControllerEntity controller) {
             this.engine = engine;
             this.controller = controller;
         }
@@ -92,7 +94,7 @@ public final class ControllerPlus {
     public ControllerStateView onStatePush(ControllerEntity controller, ControllerStateView raw) {
         if (!config.enabled || compiled.isEmpty() || controller == null) return raw;
         Slot slot = engines.computeIfAbsent(controller.uid(),
-                k -> new Slot(new TriggerEngine(compiled, modifierTapTicks), controller));
+                k -> new Slot(new EngineSet(compiled, modifierTapTicks), controller));
 
         ControlifyApi api = ControlifyApi.get();
         Minecraft mc = Minecraft.getInstance();
@@ -102,13 +104,13 @@ public final class ControllerPlus {
             driver.handle(slot.engine.hardReset(), controller);
         }
         slot.hardActive = hardActive;
-        boolean active = hardActive && mc.screen == null;
+        Set<InputContext> contexts = hardActive ? Contexts.of(mc.screen) : Set.of();
 
-        boolean scoped = active && Scoping.isScoped(mc);
+        boolean scoped = contexts.contains(InputContext.GAME) && Scoping.isScoped(mc);
         TriggerEngine.Result r = slot.engine.tick(b -> {
             Identifier bid = id(b);
             return bid != null && raw.isButtonDown(bid);
-        }, active, scoped);
+        }, contexts, scoped);
         if (!r.events().isEmpty()) driver.handle(r.events(), current ? controller : null);
         if (!r.changesView()) return raw;
         return new MaskedStateView(raw, toIds(r.masked()), toIds(r.replay()));
@@ -126,7 +128,17 @@ public final class ControllerPlus {
 
     public void onClientTick() {
         driver.tick();
+        if (!config.scopeRumble && !rumbleHookFailed) {
+            try {
+                Scoping.silenceSpyglassRumble(Minecraft.getInstance());
+            } catch (RuntimeException | LinkageError e) {
+                rumbleHookFailed = true;
+                LOG.warn("Could not stop Controlify's spyglass rumble (Controlify changed?): {}", e.toString());
+            }
+        }
     }
+
+    private static boolean rumbleHookFailed;
 
     public void onDisconnected(ControllerEntity controller) {
         Slot slot = engines.remove(controller.uid());

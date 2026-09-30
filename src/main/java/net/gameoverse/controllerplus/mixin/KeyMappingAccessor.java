@@ -1,5 +1,6 @@
 package net.gameoverse.controllerplus.mixin;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
@@ -12,4 +13,8 @@ public interface KeyMappingAccessor {
 
     @Accessor("clickCount")
     void gcp$setClickCount(int count);
+
+    /** The bound key (screen key presses need it). */
+    @Accessor("key")
+    InputConstants.Key gcp$getKey();
 }
