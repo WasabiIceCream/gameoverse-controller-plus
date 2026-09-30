@@ -24,8 +24,8 @@ public final class Defaults {
     public static final String DROP_ONE = "gameoverse_controller_plus:drop_one";
     /**
      * Spyglass Astronomy (1.0.3), while scoped: cycle its mode (normal, draw constellations, select
-     * stars), hold to draw or select (its "attack" input), and show info on the selection
-     * ({@code /sga:info}). See {@code compat.SpyglassAstronomy}.
+     * stars), hold to draw or select (its "attack" input; not in the defaults since 1.0.4, RT does it),
+     * and show info on the selection ({@code /sga:info}). See {@code compat.SpyglassAstronomy}.
      */
     public static final String ASTRONOMY_MODE = "gameoverse_controller_plus:astronomy_mode";
     public static final String ASTRONOMY_USE = "gameoverse_controller_plus:astronomy_use";
@@ -39,6 +39,14 @@ public final class Defaults {
     public static final String JEI_SHOW_RECIPE = KEY_PRESS + "key.jei.showRecipe";
     public static final String JEI_SHOW_USES = KEY_PRESS + "key.jei.showUses";
     public static final String JEI_RECIPE_BACK = KEY_PRESS + "key.jei.recipeBack";
+
+    /**
+     * 1.0.3's default "B held while scoped = draw/select". Dropped in 1.0.4 (B is needed with the right
+     * stick; RT already draws); config version 2 files that still hold it exactly get it removed.
+     */
+    static BindEntry legacyScopedB() {
+        return BindEntry.of(TriggerType.SCOPED, BTN + "east", null, 300, 2, 100, ASTRONOMY_USE, HOLD_WHILE);
+    }
 
     private Defaults() {
     }
@@ -85,11 +93,11 @@ public final class Defaults {
         // (Repeat mode: until 1.0.2 a Scoped bind in Press mode repeated; now Press fires once.)
         list.add(BindEntry.of(TriggerType.SCOPED, BTN + "right_shoulder", null, 300, 2, 100, SCROLL_UP, REPEAT));
         list.add(BindEntry.of(TriggerType.SCOPED, BTN + "left_shoulder", null, 300, 2, 100, SCROLL_DOWN, REPEAT));
-        // While scoped, the face buttons other than A (jump stays) drive Spyglass Astronomy: Y cycles
-        // its mode, B held draws a constellation line / selects (like RT), X shows the selection's
-        // info. X also stops swapping hands while scoped (Controlify's swap_hands is on X).
+        // While scoped, Y and X drive Spyglass Astronomy: Y cycles its mode, X shows the selection's
+        // info (and stops swapping hands while scoped: Controlify's swap_hands is on X). Drawing and
+        // selecting is RT (Controlify's attack, which Spyglass Astronomy reads); A jumps and B rolls.
+        // (1.0.3 also had B held = draw/select; 1.0.4 dropped it, see legacyScopedB().)
         list.add(BindEntry.of(TriggerType.SCOPED, BTN + "north", null, 300, 2, 100, ASTRONOMY_MODE, PRESS));
-        list.add(BindEntry.of(TriggerType.SCOPED, BTN + "east", null, 300, 2, 100, ASTRONOMY_USE, HOLD_WHILE));
         list.add(BindEntry.of(TriggerType.SCOPED, BTN + "west", null, 300, 2, 100, ASTRONOMY_INFO, PRESS));
         // Inventory/container screens and JEI's recipe screen: RS shows the recipes for the item under
         // the cursor, held RS its uses (JEI's R / U keys). RS does nothing in Controlify's screens.

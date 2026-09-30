@@ -608,12 +608,11 @@ class TriggerEngineTest {
 
     // ---- Scoped face buttons (1.0.3): Spyglass Astronomy, no hand swap ----------------------
 
-    /** The shipped face buttons: Y hold = World Tier, plus the scoped astronomy binds on Y/B/X. */
+    /** The shipped face buttons: Y hold = World Tier, plus the scoped astronomy binds on Y/X (no B since 1.0.4). */
     static Rig astronomyRig() {
         return new Rig(6,
                 Bind.hold(1, Y, 8, "tier", ActionMode.PRESS),
                 Bind.scoped(2, Y, 6, 2, "astronomy_mode", ActionMode.PRESS),
-                Bind.scoped(3, B, 6, 2, "astronomy_use", ActionMode.HOLD_WHILE),
                 Bind.scoped(4, X, 6, 2, "astronomy_info", ActionMode.PRESS),
                 Bind.layer(5, LB, X, "spell2", ActionMode.HOLD_WHILE));
     }
@@ -641,28 +640,25 @@ class TriggerEngineTest {
     }
 
     @Test
-    void scopedBHoldsDrawUntilReleased() {
+    void scopedBRollsWithoutDelay() {
+        // 1.0.4: B has no Scoped bind, so while scoped it reaches Controlify's roll at once.
         Rig rig = astronomyRig();
         rig.scoped = true;
         TriggerEngine.Result r = rig.press(B);
-        TriggerEngine.Event e = only(r.events());
-        assertEquals(TriggerEngine.Kind.START, e.kind());
-        assertEquals("astronomy_use", e.bind().action());
-        assertTrue(r.masked().contains(B), "no combat roll while scoped");
-        assertTrue(rig.idle(10).isEmpty());
-        assertEquals(TriggerEngine.Kind.STOP, only(rig.release(B).events()).kind());
+        assertTrue(r.events().isEmpty());
+        assertFalse(r.masked().contains(B), "B is not held back while scoped");
+        assertTrue(Rig.sees(r, B, true));
+        r = rig.release(B);
+        assertTrue(r.events().isEmpty() && r.replay().isEmpty());
     }
 
     @Test
-    void scopeEndingWhileDrawingStopsTheDraw() {
-        Rig rig = astronomyRig();
+    void scopedBIsCapturedOnlyWhenABindUsesIt() {
+        Rig rig = new Rig(6, Bind.scoped(1, B, 6, 2, "custom", ActionMode.PRESS));
         rig.scoped = true;
-        rig.press(B);
-        rig.scoped = false;
-        TriggerEngine.Result r = rig.tick();
-        assertEquals(TriggerEngine.Kind.STOP, only(r.events()).kind());
-        assertTrue(r.masked().contains(B), "still held back until released");
-        assertTrue(rig.release(B).events().isEmpty());
+        TriggerEngine.Result r = rig.press(B);
+        assertEquals("custom", only(r.events()).bind().action());
+        assertTrue(r.masked().contains(B), "a user's own scoped B bind still holds it back");
     }
 
     @Test

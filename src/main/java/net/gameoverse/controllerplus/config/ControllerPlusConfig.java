@@ -23,8 +23,11 @@ public final class ControllerPlusConfig {
     private static final Logger LOG = LoggerFactory.getLogger("gameoverse_controller_plus");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
-    /** 2 since 1.0.3: a Scoped bind in Press mode fires once; Repeat mode repeats. */
-    public static final int CURRENT_VERSION = 2;
+    /**
+     * 2 since 1.0.3: a Scoped bind in Press mode fires once; Repeat mode repeats. 3 since 1.0.4: the
+     * 1.0.3 default scoped B draw/select bind is gone.
+     */
+    public static final int CURRENT_VERSION = 3;
 
     public int version = CURRENT_VERSION;
     public boolean enabled = true;
@@ -91,6 +94,9 @@ public final class ControllerPlusConfig {
     /**
      * Version 1 (1.0.0-1.0.2) Scoped binds in Press mode repeated while held; since version 2 that is
      * Repeat mode, and Press fires once. Keeps a customized zoom repeating.
+     * <p>Version 2 (1.0.3) shipped a scoped "hold B = draw/select" default; a customized list still
+     * holding exactly that entry loses it (an edited one, other button/action/mode/times, stays). If
+     * the list then matches the defaults it goes back to following them.
      */
     void migrate() {
         if (version < 2) {
@@ -99,6 +105,13 @@ public final class ControllerPlusConfig {
                         && e.mode == net.gameoverse.controllerplus.engine.ActionMode.PRESS) {
                     e.mode = net.gameoverse.controllerplus.engine.ActionMode.REPEAT;
                 }
+            }
+        }
+        if (version < 3 && customized) {
+            BindEntry legacy = Defaults.legacyScopedB();
+            if (binds.removeIf(legacy::equals) && binds.equals(Defaults.binds())) {
+                customized = false;
+                binds = new ArrayList<>();
             }
         }
         version = CURRENT_VERSION;

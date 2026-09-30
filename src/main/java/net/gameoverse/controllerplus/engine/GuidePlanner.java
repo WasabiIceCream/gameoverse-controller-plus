@@ -15,7 +15,8 @@ import java.util.Set;
  *
  * <p>Situations, most specific first:
  * <ol>
- *   <li>Scoped: the Scoped binds (LB/RB zoom), plus the general entries of buttons without one.</li>
+ *   <li>Scoped: the Scoped binds (LB/RB zoom, Spyglass Astronomy on Y/X), RT's Spyglass Astronomy
+ *       draw/select by mode, LT's Stop, plus the general entries of buttons without a Scoped bind.</li>
  *   <li>A layer modifier held (LB): that layer's buttons with what they do now (spell names), and
  *       the modifier's chord partners. Nothing else, so the list answers "what does A do now".</li>
  *   <li>Otherwise: "Hold LB: Spells" for each modifier whose layer has a spell right now, then every
@@ -34,13 +35,23 @@ public final class GuidePlanner {
          * "Stop" on the binding whose release ends the scope (the use trigger, LT, when the spyglass is
          * held up with it). {@code buttons} holds that Controlify binding id, not a button.
          */
-        STOP_SCOPE
+        STOP_SCOPE,
+        /**
+         * What the attack binding (RT) does while scoped: Spyglass Astronomy's draw ({@link #ASTRONOMY_DRAW})
+         * or select ({@link #ASTRONOMY_SELECT}). {@code buttons} holds the binding id, as for STOP_SCOPE.
+         */
+        SCOPED_ATTACK
     }
 
     /** Controlify's use binding: LT by default. */
     public static final String USE_BINDING = "controlify:use";
+    /** Controlify's attack binding: RT by default. Spyglass Astronomy reads it (vanilla's attack key) while scoped. */
+    public static final String ATTACK_BINDING = "controlify:attack";
     /** Controlify bindings whose own guide entries are wrong while scoped (a spyglass in use ignores attacks). */
-    public static final Set<String> SCOPED_HIDDEN_BINDINGS = Set.of(USE_BINDING, "controlify:attack");
+    public static final Set<String> SCOPED_HIDDEN_BINDINGS = Set.of(USE_BINDING, ATTACK_BINDING);
+    /** {@link Form#SCOPED_ATTACK} actions: attack held draws a constellation line (mode 1), attack selects (mode 2). */
+    public static final String ASTRONOMY_DRAW = "spyglass_astronomy:draw";
+    public static final String ASTRONOMY_SELECT = "spyglass_astronomy:select";
 
     /**
      * One guide line.
@@ -66,6 +77,14 @@ public final class GuidePlanner {
          */
         default boolean scopedByUse() {
             return false;
+        }
+
+        /**
+         * Spyglass Astronomy's edit mode (0 normal, 1 draw constellations, 2 select), or -1 when the
+         * mod is missing or its mode can't be read.
+         */
+        default int astronomyMode() {
+            return -1;
         }
 
         /** Whether the button is physically held. */
@@ -139,6 +158,15 @@ public final class GuidePlanner {
                 if (b.type() == TriggerType.SCOPED && ctx.level(b.action()) > 0) {
                     out.add(new Entry(Side.LEFT, Form.SCOPED, List.of(b.button()), b.action(), 0));
                 }
+            }
+            // RT (Controlify's attack line is hidden while scoped): what Spyglass Astronomy does with it.
+            String attack = switch (ctx.astronomyMode()) {
+                case 1 -> ASTRONOMY_DRAW;
+                case 2 -> ASTRONOMY_SELECT;
+                default -> null;
+            };
+            if (attack != null) {
+                out.add(new Entry(Side.RIGHT, Form.SCOPED_ATTACK, List.of(ATTACK_BINDING), attack, 0));
             }
             if (ctx.scopedByUse()) {
                 out.add(new Entry(Side.RIGHT, Form.STOP_SCOPE, List.of(USE_BINDING), USE_BINDING, 0));

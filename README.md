@@ -30,8 +30,8 @@ list in the config screen.
 | RB while scoped | scroll up one notch (zoom in), repeats after 300 ms every 100 ms | repeat |
 | LB while scoped | scroll down one notch (zoom out), same repeat | repeat |
 | Y while scoped | Spyglass Astronomy: next mode (normal, draw constellations, select) | press |
-| B while scoped | Spyglass Astronomy: draw a constellation line / select (like RT) | hold while pressed |
 | X while scoped | Spyglass Astronomy: info on the selection (`/sga:info`); no hand swap | press |
+| (RT while scoped, Controlify's own attack) | Spyglass Astronomy: hold to draw a constellation line / select | native |
 | tap RS in an inventory or JEI's recipe screen | JEI recipes for the item under the cursor (`key.jei.showRecipe`) | press |
 | hold RS 300 ms, same screens | JEI uses (`key.jei.showUses`) | press |
 | Y in JEI's recipe screen | JEI back to the previous recipes (`key.jei.recipeBack`) | press |
@@ -40,9 +40,10 @@ list in the config screen.
 makes vanilla's `isScoping()` true), or holding Ok Zoomer's zoom key if that mod is installed. While
 scoped, LB and RB only zoom: no hotbar change, no spell layers, no LB+RB chord. A shoulder already
 held when scoping starts does nothing until it is pressed again; when scoping ends the repeats stop
-at once and a still-held shoulder stays inert until released. Since 1.0.3 X, Y and B are Scoped too
-(Spyglass Astronomy, below), so while scoped they don't swap hands, open the inventory or World Tier,
-or combat-roll; A still jumps.
+at once and a still-held shoulder stays inert until released. Since 1.0.3 X and Y are Scoped too
+(Spyglass Astronomy, below), so while scoped they don't swap hands or open the inventory or World Tier;
+A still jumps and B still rolls (1.0.3 also had B held = draw; 1.0.4 dropped it, since the right thumb
+is on the right stick aiming, and RT does the same).
 
 ### Spyglass Astronomy while scoped (1.0.3)
 
@@ -56,8 +57,10 @@ sets `key.pickItem`, so the mode couldn't be changed from a controller. The acti
 
 - `astronomy_mode`: holds `key.pickItem` down for 3 ticks (`setDown` only, no click, so nothing is
   picked; vanilla discards pick clicks while an item is in use anyway).
-- `astronomy_use`: holds `key.attack` down while B is held, only in modes 1 and 2 (in normal mode
-  it does nothing). On release it lets go unless RT is held.
+- `astronomy_use`: holds `key.attack` down while its button is held, only in modes 1 and 2 (in normal
+  mode it does nothing). On release it lets go unless RT is held. Not in the defaults since 1.0.4 (RT
+  already does this); still in the action list for a custom bind. Config files from 1.0.3 (version 2)
+  that still hold its exact default "B while scoped" entry lose it on load; an edited one stays.
 - `astronomy_info`: sends `sga:info` through `ClientPacketListener.sendCommand`, which Fabric's client
   command API runs locally (chat shows the info for the selected star, constellation or planet).
 
@@ -179,9 +182,10 @@ With Controlify's "Show in-game button guide" on, the guide also shows the advan
 for the moment (`engine/GuidePlanner`, unit tested; labels and glyphs in `client/ButtonGuide`):
 
 - **Scoped**: `[RB] Zoom in`, `[LB] Zoom out`, the Spyglass Astronomy buttons (`[Y] Draw mode` /
-  `Select mode` / `Normal view`, the mode Y switches to; `[B] Hold: Draw line` in draw mode, `[B]
-  Select` and `[X] Info` in select mode), plus the other buttons' hints. Controlify's own lines for
-  LT (its "Zoom" rule for a spyglass in hand) and RT are hidden, and so are X/Y/B's. When the spyglass
+  `Select mode` / `Normal view`, the mode Y switches to; `[X] Info` in select mode), RT on the right by
+  mode (`Hold: Draw [RT]` in draw mode, `Select [RT]` in select mode, nothing in normal mode), plus the
+  other buttons' hints (B's roll included). Controlify's own lines for LT (its "Zoom" rule for a
+  spyglass in hand) and RT (attack, which does nothing to a spyglass) are hidden, and so are X/Y's. When the spyglass
   is up because LT is held, `Stop [LT]` sits on the right; when it is up through the D-up toggle, LT
   does nothing (Spyglass Improvements keeps the use key "down" while its key is held), so there is no
   LT line and `Hold: Stop Spyglass [D-up]` says how to end it.
@@ -308,8 +312,8 @@ AutoModpack's manifest picks it up) and the Working test instance's `mods/`.
   default); an unbound one logs a warning once and does nothing.
 - Spyglass Astronomy naming needs typing (`/sga:name <name>` in chat; Controlify's on-screen keyboard
   works there). Its mode and hints depend on reading its `editMode` field by reflection: if a future
-  version renames it, the log says so once and Y/X still act but show no hints, and B does nothing
-  (its gate can't see the mode); RT still draws.
+  version renames it, the log says so once and Y/X still act but show no hints, and there is no RT
+  line; RT still draws.
 - No "press the buttons" capture widget in the config screen.
 - The button guide integration is a third hook into Controlify internals (`GuideInstanceImpl.update`,
   `PrecomputedLines`); recheck it with the other two when Controlify updates.

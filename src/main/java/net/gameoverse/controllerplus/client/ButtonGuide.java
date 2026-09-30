@@ -38,8 +38,8 @@ import org.slf4j.LoggerFactory;
  * {@code GuideInstanceImplMixin} on each guide update (once a tick while the guide is on):
  * <ol>
  *   <li>{@link #filter}: drops Controlify's own entries for buttons whose meaning our binds change
- *       right now (D-down's Drop, whose tap now crawls; A/X/Y/B while LB is held; LB/RB while
- *       scoped).</li>
+ *       right now (D-down's Drop, whose tap now crawls; A/X/Y/B while LB is held; LB/RB/X/Y, LT and
+ *       RT while scoped).</li>
  *   <li>{@link #extend}: adds our lines, laid out the way Controlify lays out its own: glyph then text
  *       on the left, text then glyph on the right. Chords get two glyphs joined by "+".</li>
  * </ol>
@@ -132,13 +132,14 @@ public final class ButtonGuide {
                 Component label = label(e, controller);
                 if (label == null) continue;
                 MutableComponent glyph = Component.empty();
-                if (e.form() == GuidePlanner.Form.STOP_SCOPE) {
-                    // The glyph of whatever the use binding is bound to (LT by default).
-                    InputBinding use = binding(GuidePlanner.USE_BINDING, controller);
-                    if (use == null || use.isUnbound()) continue;
-                    glyph.append(use.inputGlyph());
+                boolean onBinding = e.form() == GuidePlanner.Form.STOP_SCOPE || e.form() == GuidePlanner.Form.SCOPED_ATTACK;
+                if (onBinding) {
+                    // The glyph of whatever that binding is bound to (use: LT, attack: RT by default).
+                    InputBinding b = binding(e.buttons().getFirst(), controller);
+                    if (b == null || b.isUnbound()) continue;
+                    glyph.append(b.inputGlyph());
                 }
-                for (int i = 0; e.form() != GuidePlanner.Form.STOP_SCOPE && i < e.buttons().size(); i++) {
+                for (int i = 0; !onBinding && i < e.buttons().size(); i++) {
                     if (i > 0) glyph.append("+");
                     Identifier button = Identifier.tryParse(e.buttons().get(i));
                     if (button != null) glyph.append(fonts.getComponentFromInputs(ns, List.of(button)));
@@ -183,6 +184,9 @@ public final class ButtonGuide {
 
     private static Component label(GuidePlanner.Entry e, ControllerEntity controller) {
         if (e.form() == GuidePlanner.Form.STOP_SCOPE) return Component.translatable(K + "stop_scope");
+        if (e.form() == GuidePlanner.Form.SCOPED_ATTACK) {
+            return Component.translatable(K + "astronomy.use." + (GuidePlanner.ASTRONOMY_DRAW.equals(e.action()) ? 1 : 2));
+        }
         int spell = ActionDriver.spellSlot(e.action());
         Component name;
         if (e.action().startsWith("gameoverse_controller_plus:astronomy_")) {
@@ -259,6 +263,11 @@ public final class ButtonGuide {
             InputBinding use = binding(GuidePlanner.USE_BINDING, controller);
             LocalPlayer player = Minecraft.getInstance().player;
             return use != null && use.digitalNow() && player != null && player.isUsingItem();
+        }
+
+        @Override
+        public int astronomyMode() {
+            return SpyglassAstronomy.editMode();
         }
 
         @Override

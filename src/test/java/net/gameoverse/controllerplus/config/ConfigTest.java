@@ -1,6 +1,8 @@
 package net.gameoverse.controllerplus.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
@@ -24,7 +26,8 @@ class ConfigTest {
         }
         assertEquals(2, screen);
         assertEquals(1, recipe);
-        assertEquals(25, defaults.size());
+        assertEquals(24, defaults.size());
+        assertFalse(defaults.contains(Defaults.legacyScopedB()), "1.0.4: no scoped B draw bind");
     }
 
     @Test
@@ -55,5 +58,49 @@ class ConfigTest {
         c.binds.get(0).mode = ActionMode.PRESS;
         c.migrate();
         assertEquals(ActionMode.PRESS, c.binds.get(0).mode, "a version 2 file is left alone");
+    }
+
+    @Test
+    void version2LegacyScopedBRemoved() {
+        ControllerPlusConfig c = new ControllerPlusConfig();
+        c.version = 2;
+        c.customized = true;
+        c.binds.addAll(Defaults.binds());
+        BindEntry spells = c.binds.getFirst();
+        spells.mode = ActionMode.PRESS; // one real customization
+        c.binds.add(Defaults.legacyScopedB());
+        c.migrate();
+        assertFalse(c.binds.contains(Defaults.legacyScopedB()));
+        assertTrue(c.customized);
+        assertEquals(Defaults.binds().size(), c.binds.size());
+        assertEquals(ControllerPlusConfig.CURRENT_VERSION, c.version);
+    }
+
+    @Test
+    void version2DefaultsPlusLegacyBGoBackToFollowingDefaults() {
+        ControllerPlusConfig c = new ControllerPlusConfig();
+        c.version = 2;
+        c.customized = true;
+        c.binds.addAll(Defaults.binds());
+        c.binds.add(Defaults.legacyScopedB());
+        c.migrate();
+        assertFalse(c.customized, "only the old default differed");
+        assertTrue(c.binds.isEmpty());
+        assertEquals(Defaults.binds(), c.effectiveBinds());
+    }
+
+    @Test
+    void editedScopedBKeptAndVersion3LeftAlone() {
+        ControllerPlusConfig c = new ControllerPlusConfig();
+        c.version = 2;
+        c.customized = true;
+        BindEntry edited = Defaults.legacyScopedB();
+        edited.mode = ActionMode.PRESS;
+        c.binds.add(edited);
+        c.migrate();
+        assertEquals(1, c.binds.size(), "an edited B bind is the user's own");
+        c.binds.add(Defaults.legacyScopedB());
+        c.migrate(); // now version 3
+        assertEquals(2, c.binds.size(), "a version 3 file keeps a B bind the user added back");
     }
 }

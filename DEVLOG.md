@@ -1,5 +1,37 @@
 # DEVLOG
 
+## 2026-09-30: 1.0.4, scoped B back to roll, RT hints for Spyglass Astronomy
+
+User feedback (1.0.3 not yet tested in game otherwise): holding B to draw constellations while scoped is
+awkward, the right thumb also has to move the right stick to aim. RT (Controlify's attack, which drives
+vanilla's `key.attack`, which Spyglass Astronomy polls) already draws and selects.
+
+- Defaults: the scoped B `astronomy_use` hold-while bind is gone (24 binds). B has no Scoped bind now,
+  so the engine no longer captures it while scoped: it rolls without delay. A user's own scoped B bind
+  still captures it. `astronomy_use` stays an available action.
+- Config version 3: a customized version-2 list holding exactly the old entry (`Defaults.legacyScopedB()`,
+  compared with `BindEntry.equals`: button, times, action, mode, context, enabled) loses it; if the list
+  then equals the defaults it goes back to `customized: false`. Edited copies (other mode, times, ...)
+  stay. Same approach as 1.0.3's v1 -> v2 migration (in memory on load; written on the next save).
+- Guide: new `Form.SCOPED_ATTACK` on the right with the attack binding's own glyph (like LT's
+  `STOP_SCOPE`), from `Context.astronomyMode()` (Spyglass Astronomy's `editMode`): mode 1
+  `Hold: Draw [RT]`, mode 2 `Select [RT]`, mode 0 or mod missing nothing. Controlify's own attack line
+  stays hidden while scoped (it would say Attack/Mine). B is no longer in the scoped overridden set, so
+  Controlify's roll line shows. `astronomy.use.1` text is now "Hold: Draw".
+
+Tests: 84 (was 77): removed the two B hold-while engine tests, added B rolls unmasked while scoped and a
+custom scoped B still captures (engine), four planner tests (RT per mode, order above LT's Stop, nothing
+in normal mode/missing mod/outside a scope, B keeps Controlify's line), three config tests (legacy B
+removed from a customized list, defaults + legacy B back to defaults, edited B kept and v3 untouched).
+
+In-game test script (1.0.4; also covers the untested 1.0.3 steps above, skip its step 5 B part):
+1. Log: `Loaded 24 advanced controller binds (defaults)`, the three `Controlify hook applied` lines.
+2. Scope (D-up hold or LT). Normal mode: no RT line, no Attack line; B rolls at once.
+3. Y to draw mode: guide right column `Hold: Draw [RT]`; hold RT on a star, aim with the right stick,
+   release on another star: a line. B still rolls.
+4. Y to select mode: `Select [RT]` and `[X] Info`; RT on a star selects it, X prints the info.
+5. Y back to normal: RT line gone.
+
 ## 2026-09-30: 1.0.3, scoped fixes, Spyglass Astronomy and JEI from a controller
 
 User feedback from in-game testing of 1.0.2 (which works): (1) while scoped the guide still showed

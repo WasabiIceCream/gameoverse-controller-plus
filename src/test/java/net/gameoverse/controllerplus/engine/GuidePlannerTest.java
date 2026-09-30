@@ -33,6 +33,7 @@ class GuidePlannerTest {
         int verbosity = 2;
         boolean scoped;
         boolean byUse;
+        int astronomy = -1;
         final Set<String> down = new HashSet<>();
         final Map<String, Integer> levels = new HashMap<>(Map.of(
                 "spell_1", 2, "spell_2", 2, "spell_5", 2, "skills", 2, "guide", 2, "tier", 2,
@@ -41,6 +42,7 @@ class GuidePlannerTest {
         @Override public int verbosity() { return verbosity; }
         @Override public boolean scoped() { return scoped; }
         @Override public boolean scopedByUse() { return byUse; }
+        @Override public int astronomyMode() { return astronomy; }
         @Override public boolean isDown(String button) { return down.contains(button); }
         @Override public int level(String action) { return levels.getOrDefault(action, action.startsWith("zoom") ? 1 : 0); }
     }
@@ -167,6 +169,66 @@ class GuidePlannerTest {
         assertFalse(a.contains("astronomy_info"), "level 0 (not in select mode): no line");
         assertFalse(a.contains("tier"), "Y's World Tier hold hidden while Y is an astronomy button");
         assertTrue(plan.overridden().containsAll(Set.of(X, Y)), "Controlify's Swap Hands (X) and Inventory (Y) lines hidden");
+    }
+
+    // ---- 1.0.4: RT hints by Spyglass Astronomy's mode -----------------------------------------
+
+    static List<GuidePlanner.Entry> attackEntries(GuidePlanner.Plan plan) {
+        return plan.entries().stream().filter(e -> e.form() == GuidePlanner.Form.SCOPED_ATTACK).toList();
+    }
+
+    @Test
+    void scopedDrawModeShowsHoldDrawOnRt() {
+        Ctx ctx = new Ctx();
+        ctx.scoped = true;
+        ctx.astronomy = 1;
+        GuidePlanner.Plan plan = new GuidePlanner(LAYOUT).plan(ctx);
+        GuidePlanner.Entry rt = attackEntries(plan).stream().findFirst().orElseThrow();
+        assertEquals(GuidePlanner.ASTRONOMY_DRAW, rt.action());
+        assertEquals(List.of(GuidePlanner.ATTACK_BINDING), rt.buttons());
+        assertEquals(GuidePlanner.Side.RIGHT, rt.side());
+        assertEquals(1, attackEntries(plan).size());
+        assertTrue(plan.hiddenBindings().contains(GuidePlanner.ATTACK_BINDING), "Controlify's own RT line stays hidden");
+    }
+
+    @Test
+    void scopedSelectModeShowsSelectOnRt() {
+        Ctx ctx = new Ctx();
+        ctx.scoped = true;
+        ctx.astronomy = 2;
+        ctx.byUse = true;
+        GuidePlanner.Plan plan = new GuidePlanner(LAYOUT).plan(ctx);
+        assertEquals(List.of(GuidePlanner.ASTRONOMY_SELECT), attackEntries(plan).stream().map(GuidePlanner.Entry::action).toList());
+        List<GuidePlanner.Form> right = plan.entries().stream().filter(e -> e.side() == GuidePlanner.Side.RIGHT)
+                .map(GuidePlanner.Entry::form).toList();
+        assertEquals(GuidePlanner.Form.SCOPED_ATTACK, right.getFirst(), "RT hint above LT's Stop");
+        assertTrue(right.contains(GuidePlanner.Form.STOP_SCOPE));
+    }
+
+    @Test
+    void scopedNormalModeOrNoAstronomyShowsNothingOnRt() {
+        Ctx ctx = new Ctx();
+        ctx.scoped = true;
+        ctx.astronomy = 0;
+        GuidePlanner.Plan plan = new GuidePlanner(LAYOUT).plan(ctx);
+        assertTrue(attackEntries(plan).isEmpty(), "normal mode: RT does nothing while scoped");
+        assertTrue(plan.hiddenBindings().contains(GuidePlanner.ATTACK_BINDING), "and Controlify's Attack line is hidden");
+        ctx.astronomy = -1;
+        assertTrue(attackEntries(new GuidePlanner(LAYOUT).plan(ctx)).isEmpty(), "mod missing: nothing");
+        ctx.astronomy = 1;
+        ctx.scoped = false;
+        assertTrue(attackEntries(new GuidePlanner(LAYOUT).plan(ctx)).isEmpty(), "outside a scope: no RT hint");
+    }
+
+    @Test
+    void scopedBKeepsControlifysOwnLineWithoutAScopedBind() {
+        List<Bind> layout = new java.util.ArrayList<>(LAYOUT);
+        layout.add(Bind.scoped(20, Y, 6, 2, "astronomy_mode", ActionMode.PRESS));
+        layout.add(Bind.scoped(21, X, 6, 2, "astronomy_info", ActionMode.PRESS));
+        Ctx ctx = new Ctx();
+        ctx.scoped = true;
+        ctx.astronomy = 1;
+        assertFalse(new GuidePlanner(layout).plan(ctx).overridden().contains("b"), "B's roll line shows while scoped");
     }
 
     static final String RS = "right_stick";
