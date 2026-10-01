@@ -20,23 +20,30 @@ public final class StickScroll {
      * Screen class (or superclass) name -> notches per second at full deflection. Matched against the
      * screen's class and its superclasses by name, so nothing here is loaded.
      */
-    static final Map<String, Double> RATES = Map.of(
+    static final Map<String, Double> RATES = Map.ofEntries(
             // Oracle Index (Gameoverse Guide): ScrollWidget does (int) amount * 12 px, so fractions scrolled nothing.
-            "rearth.oracle.ui.WikiBaseScreen", 25.0,
+            Map.entry("rearth.oracle.ui.WikiBaseScreen", 25.0),
             // Field Guide: each call turns a page / cycles a variant (sign only).
-            "com.evandev.fieldguide.client.gui.screens.BookScreen", 4.0,
+            Map.entry("com.evandev.fieldguide.client.gui.screens.BookScreen", 4.0),
             // Scholar books and lecterns: each call turns a page (sign only).
-            "io.github.mortuusars.scholar.client.gui.screen.SpreadBookScreen", 4.0,
+            Map.entry("io.github.mortuusars.scholar.client.gui.screen.SpreadBookScreen", 4.0),
             // MapStitch world map: each call is one zoom level (-2..1).
-            "me.pajic.mapstitch.worldmap.WorldMapScreen", 5.0,
+            Map.entry("me.pajic.mapstitch.worldmap.WorldMapScreen", 5.0),
             // Create's Ponder: each call steps a scene.
-            "com.zurrtum.create.client.ponder.foundation.ui.PonderUI", 4.0,
+            Map.entry("com.zurrtum.create.client.ponder.foundation.ui.PonderUI", 4.0),
             // Create's value settings (scroll on a value board): each call is one value step.
-            "com.zurrtum.create.client.foundation.blockEntity.ValueSettingsScreen", 8.0,
+            Map.entry("com.zurrtum.create.client.foundation.blockEntity.ValueSettingsScreen", 8.0),
             // JEI's recipe screen: each call is one recipe page (or one notch of a recipe's scroll area).
-            "mezz.jei.gui.recipes.RecipesGui", 6.0,
+            Map.entry("mezz.jei.gui.recipes.RecipesGui", 6.0),
             // Penchant's enchanting table: ScrollbarComponent does addPosition((int) -amount), so fractions scrolled nothing.
-            "archives.tater.penchant.client.gui.screen.PenchantmentScreen", 10.0);
+            Map.entry("archives.tater.penchant.client.gui.screen.PenchantmentScreen", 10.0),
+            // BRBE recipe book (inventory, crafting table, furnaces): each call turns a page; its recipe viewer
+            // steps tabs and pages per call too. Other containers keep Controlify's scrolling.
+            Map.entry("net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen", 6.0),
+            // BRBE's brewing stand book: each call turns a page.
+            Map.entry("net.minecraft.client.gui.screens.inventory.BrewingStandScreen", 6.0),
+            // BRBE's smithing table book: each call turns a page.
+            Map.entry("net.minecraft.client.gui.screens.inventory.SmithingScreen", 6.0));
 
     private static final StickScroller SCROLLER = new StickScroller();
     private static Screen lastScreen;

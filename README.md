@@ -130,6 +130,11 @@ frame, which suits smooth scroll lists but not screens that read the wheel in wh
   nothing scrolled.
 - **Penchant's enchanting table** (1.0.6): its enchantment list's `ScrollbarComponent` moves
   `(int) -amount` entries, so it didn't scroll either (10 entries per second at full deflection).
+- **BRBE's recipe book** (1.0.7; inventory, crafting table, furnaces, plus its brewing stand and
+  smithing table books): BRBE takes the wheel in `MouseHandler.onScroll` and turns one page for any
+  nonzero amount, and its recipe viewer steps tabs and pages the same way, so the book flipped a page
+  every frame and kept going after release. Inventories reach the same `handleScroll` through
+  Controlify's container processor (`CURSOR_SCROLL`). 6 pages/s at full deflection.
 - **Field Guide** (page/variant), **Scholar** books and lecterns (page), **MapStitch world map** (zoom
   level), **Create Ponder** (scene), **Create value boards** (value) and **JEI's recipe screen** (page)
   act on each call's sign: a step on every frame, plus the frames the pending scroll takes to run out
@@ -141,10 +146,10 @@ Controlify's accumulation (`VirtualMouseHandlerMixin`, `@Inject` at the head of
 `MouseHandler.onScroll` at the cursor, the path of a mouse wheel: the first notch as soon as the
 stick leaves a 0.15 deadzone (on top of Controlify's own), then a rate proportional to the deflection
 past it (`engine/StickScroller`, unit tested), at full deflection 25 notches/s in the Guide (300 px/s),
-4/s for page turns and Ponder, 5/s for the map zoom, 6/s in JEI's recipes, 8/s on value boards. It
+4/s for page turns and Ponder, 5/s for the map zoom, 6/s in JEI's recipes and the recipe book, 8/s on value boards. It
 reads Controlify's `vmouse_scroll_up`/`down` bindings, so a rebind in Controlify still applies. Every
-other screen (Skill Tree, Skill Forest, Better Advancements, Cloth Config, inventories, ...) keeps
-Controlify's smooth scrolling. The virtual cursor must be on in the screen (it is for all of these
+other screen (Skill Tree, Skill Forest, Better Advancements, Cloth Config, chests and other
+containers without a recipe book, the creative inventory, ...) keeps Controlify's smooth scrolling. The virtual cursor must be on in the screen (it is for all of these
 in the pack's `controlify.json`; Back toggles it). Config "Stick Scrolling Fix" (on) turns it off.
 
 ## How it works

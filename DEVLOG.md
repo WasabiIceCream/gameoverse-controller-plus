@@ -1,5 +1,37 @@
 # DEVLOG
 
+## 2026-10-01: 1.0.7, right-stick scrolling in BRBE's recipe book
+
+User request: the right stick needs the same scrolling fix in BRBE's recipe book. Findings (BRBE
+`backport-26.1.2-v2` source, Controlify 3.5.3 jar):
+
+- Controlify's `AbstractContainerScreenProcessor` returns `VirtualMouseBehaviour.CURSOR_SCROLL`, so in
+  inventories `handleControllerInput` calls `handleScroll` (our hook) and `updateMouse` hands the pending
+  scroll out per frame through `MouseHandler.onScroll`.
+- BRBE's `MouseScrollHandler` (HEAD of `MouseHandler.onScroll`) calls `RecipeBookGesture.claimScroll`: over
+  the book panel or its tab strip it sets `queuedScroll = amount > 0 ? -1 : 1` (one page) or RBIP's
+  `rbip$scrollPages` steps one tab page, for any nonzero amount. `RecipeViewerOverlay.mouseScrolled`
+  (`mouseScrolledTabs`, its pages) also steps per call on the sign. Outside vanilla recipe-book screens
+  the same hook queues one page unconditionally for BRBE's brewing stand and smithing books.
+- So the book turned a page every frame while the stick was pushed, and for the frames the pending
+  scroll took to decay after release.
+
+Fix: `StickScroll.RATES` gets `AbstractRecipeBookScreen` (inventory, crafting table, furnace, blast
+furnace, smoker), `BrewingStandScreen` and `SmithingScreen` at 6 notches/s (JEI recipe screen's rate).
+`RATES` moved to `Map.ofEntries` (11 entries). Other containers (chests, the creative inventory, backpacks)
+keep Controlify's fractional scrolling. Side effect, wanted: JEI's ingredient overlay in those screens
+now pages one notch at a time too (it paged per frame, noted under 1.0.5).
+
+Tests: 92, unchanged (rate table only). Not tested in game yet.
+
+In-game test (controller, inventory open with the recipe book shown):
+1. Cursor over the recipe book: a light right-stick push turns one page; holding at full tilt about 6
+   per second; release stops at once.
+2. Cursor over the book's tab strip with more tabs than fit: tab pages step one at a time.
+3. Crafting table, furnace, brewing stand, smithing table books: same.
+4. JEI's ingredient list on the right of the inventory: pages one at a time.
+5. A chest or backpack: scrolling unchanged.
+
 ## 2026-09-30: 1.0.6, right-stick scrolling in Penchant's enchanting table
 
 User report: the right stick didn't scroll the enchanting table's enchantment list. Penchant 0.5.6's
