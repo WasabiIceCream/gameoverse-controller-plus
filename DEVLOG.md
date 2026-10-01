@@ -1,5 +1,13 @@
 # DEVLOG
 
+## 2026-09-30: 1.0.6, right-stick scrolling in Penchant's enchanting table
+
+User report: the right stick didn't scroll the enchanting table's enchantment list. Penchant 0.5.6's
+`PenchantmentScreen.mouseScrolled` hands the wheel to `ScrollbarComponent.mouseScrolled`, which calls
+`addPosition((int) -amount)`: Controlify's fractional per-frame scroll truncates to 0. Added the screen to
+`StickScroll.RATES` at 10 notches/s (one entry per notch). The user also once saw the list scroll wildly
+while moving the cursor with the left stick and couldn't reproduce it; nothing in this path explains it.
+
 ## 2026-09-30: 1.0.5, right-stick scrolling in the Guide and book screens
 
 User report (1.0.4 in game): in the Gameoverse Guide (Oracle Index) the virtual cursor moves and clicks,

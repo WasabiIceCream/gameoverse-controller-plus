@@ -128,6 +128,8 @@ frame, which suits smooth scroll lists but not screens that read the wheel in wh
 - **Gameoverse Guide** (Oracle Index `WikiBaseScreen`, so page content, the category list and search
   results): its `ScrollWidget` moves `(int) amount * 12` px, and every fraction truncates to 0, so
   nothing scrolled.
+- **Penchant's enchanting table** (1.0.6): its enchantment list's `ScrollbarComponent` moves
+  `(int) -amount` entries, so it didn't scroll either (10 entries per second at full deflection).
 - **Field Guide** (page/variant), **Scholar** books and lecterns (page), **MapStitch world map** (zoom
   level), **Create Ponder** (scene), **Create value boards** (value) and **JEI's recipe screen** (page)
   act on each call's sign: a step on every frame, plus the frames the pending scroll takes to run out

@@ -34,7 +34,9 @@ public final class StickScroll {
             // Create's value settings (scroll on a value board): each call is one value step.
             "com.zurrtum.create.client.foundation.blockEntity.ValueSettingsScreen", 8.0,
             // JEI's recipe screen: each call is one recipe page (or one notch of a recipe's scroll area).
-            "mezz.jei.gui.recipes.RecipesGui", 6.0);
+            "mezz.jei.gui.recipes.RecipesGui", 6.0,
+            // Penchant's enchanting table: ScrollbarComponent does addPosition((int) -amount), so fractions scrolled nothing.
+            "archives.tater.penchant.client.gui.screen.PenchantmentScreen", 10.0);
 
     private static final StickScroller SCROLLER = new StickScroller();
     private static Screen lastScreen;
