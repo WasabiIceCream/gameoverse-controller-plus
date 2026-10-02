@@ -41,8 +41,20 @@ public final class SpellHudGlyphs {
     public static final boolean SPELL_ENGINE = FabricLoader.getInstance().isModLoaded("spell_engine");
     private static final String MARK = "gcp:";
     private static final int SPELL_SLOTS = 8;
-    private static final Map<String, Component> GLYPHS = new HashMap<>();
+    private static final Map<String, Entry> ENTRIES = new HashMap<>();
     private static boolean failed;
+    /** Centre x of the first slot of the layer group being drawn (slots are drawn left to right). */
+    private static int groupStartX;
+
+    /**
+     * One slot's label. A spell slot on a layer bind shows only its face button; the layer's modifier
+     * (LB/RB) is drawn once above its group of consecutive slots, by the group's last slot.
+     */
+    private record Entry(Component glyph, Component header, boolean groupStart, boolean groupEnd) {
+        static Entry single(Component glyph) {
+            return new Entry(glyph, null, false, false);
+        }
+    }
 
     private SpellHudGlyphs() {
     }
@@ -55,10 +67,10 @@ public final class SpellHudGlyphs {
             if (!api.currentInputMode().isController()) return null;
             ControllerEntity controller = api.getCurrentController().orElse(null);
             if (controller == null) return null;
-            Component glyph = glyph(key, controller);
-            if (glyph == null) return null;
+            Entry entry = entry(key, controller);
+            if (entry == null) return null;
             String label = MARK + key.getName();
-            GLYPHS.put(label, glyph);
+            ENTRIES.put(label, entry);
             return label;
         } catch (RuntimeException | LinkageError e) {
             failed = true;
@@ -67,14 +79,38 @@ public final class SpellHudGlyphs {
         }
     }
 
-    private static Component glyph(KeyMapping key, ControllerEntity controller) {
-        if (key == Minecraft.getInstance().options.keyUse) return bindingGlyph("controlify:use", controller);
-        for (int n = 1; n <= SPELL_SLOTS; n++) {
+    private static Entry entry(KeyMapping key, ControllerEntity controller) {
+        if (key == Minecraft.getInstance().options.keyUse) return single(bindingGlyph("controlify:use", controller));
+        int count = SpellSlots.count();
+        for (int n = 1; n <= Math.min(count, SPELL_SLOTS); n++) {
             if (SpellSlots.resolve(n) != key) continue;
-            Bind bind = ControllerPlus.get().bindFor(Defaults.SPELL_SLOT + n);
-            return bind == null ? null : buttons(bind, controller);
+            Bind bind = slotBind(n);
+            if (bind == null) return null;
+            if (bind.type() != TriggerType.LAYER) return Entry.single(buttons(bind, controller));
+            Bind prev = n > 1 ? slotBind(n - 1) : null;
+            Bind next = n < Math.min(count, SPELL_SLOTS) ? slotBind(n + 1) : null;
+            return new Entry(glyph(bind.button(), controller), glyph(bind.other(), controller),
+                    !sameLayer(prev, bind), !sameLayer(next, bind));
         }
-        return bindingGlyph("controlify_modded:" + key.getName(), controller);
+        return single(bindingGlyph("controlify_modded:" + key.getName(), controller));
+    }
+
+    private static Entry single(Component glyph) {
+        return glyph == null ? null : Entry.single(glyph);
+    }
+
+    private static Bind slotBind(int n) {
+        return ControllerPlus.get().bindFor(Defaults.SPELL_SLOT + n);
+    }
+
+    private static boolean sameLayer(Bind other, Bind bind) {
+        return other != null && other.type() == TriggerType.LAYER && bind.other().equals(other.other());
+    }
+
+    private static Component glyph(String buttonId, ControllerEntity controller) {
+        Identifier button = Identifier.tryParse(buttonId);
+        if (button == null) return Component.empty();
+        return Controlify.instance().inputFontMapper().getComponentFromInputs(controller.info().type().namespace(), List.of(button));
     }
 
     private static Component bindingGlyph(String id, ControllerEntity controller) {
@@ -103,19 +139,27 @@ public final class SpellHudGlyphs {
 
     /**
      * Draws a marker label's glyph where Spell Engine would draw that label: {@code x} is the left edge
-     * (LEADING), right edge (TRAILING) or centre; {@code vTrailing} puts the bottom at {@code y}. False if
-     * the label isn't ours.
+     * (LEADING), right edge (TRAILING) or centre; {@code vTrailing} puts the bottom at {@code y}. A layer
+     * group's last slot also draws the modifier centred above the group. False if the label isn't ours.
      */
     public static boolean draw(GuiGraphicsExtractor context, Font font, String label, int x, int y,
                                boolean hLeading, boolean hTrailing, boolean vTrailing) {
         if (label == null || !label.startsWith(MARK)) return false;
-        Component glyph = GLYPHS.get(label);
-        if (glyph == null) return true;
-        int width = font.width(glyph);
-        int height = BindingFontHelper.getComponentHeight(font, glyph);
+        Entry entry = ENTRIES.get(label);
+        if (entry == null) return true;
+        int width = font.width(entry.glyph());
+        int height = BindingFontHelper.getComponentHeight(font, entry.glyph());
         int left = hLeading ? x : hTrailing ? x - width : x - width / 2;
         int top = vTrailing ? y - height : y - height / 2;
-        context.text(font, glyph, left, top, -1, false);
+        context.text(font, entry.glyph(), left, top, -1, false);
+        int centre = left + width / 2;
+        if (entry.groupStart()) groupStartX = centre;
+        if (entry.groupEnd() && entry.header() != null) {
+            int headerWidth = font.width(entry.header());
+            int headerHeight = BindingFontHelper.getComponentHeight(font, entry.header());
+            int middle = (groupStartX + centre) / 2;
+            context.text(font, entry.header(), middle - headerWidth / 2, top - headerHeight - 1, -1, false);
+        }
         return true;
     }
 }

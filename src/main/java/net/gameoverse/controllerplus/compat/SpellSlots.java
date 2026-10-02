@@ -44,6 +44,13 @@ public final class SpellSlots {
         return stack != null && !stack.isEmpty() ? stack.getHoverName() : null;
     }
 
+    /** How many spell slots (besides the use key's) the spell hotbar has right now. */
+    public static int count() {
+        SpellHotbar bar = SpellHotbar.INSTANCE;
+        if (bar == null || bar.structuredSlots == null || bar.structuredSlots.other() == null) return 0;
+        return bar.structuredSlots.other().size();
+    }
+
     private static SpellHotbar.Slot slot(int n) {
         SpellHotbar bar = SpellHotbar.INSTANCE;
         if (bar == null || bar.structuredSlots == null || n < 1) return null;

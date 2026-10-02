@@ -15,6 +15,11 @@ binding (LT); spell slot n's key (identity with `SpellSlots.resolve(n)`) gets ou
 (LB+A by default, "modifier+button" for layers, both buttons for chords); any other key its
 `controlify_modded:` binding if bound, else Spell Engine's own label.
 
+First in-game look (user): with four spells the LB+A style combos overlapped each other (a slot is 20 px, a
+combo ~50). Layer slots now show only their face button, and the layer's modifier (LB/RB) is drawn once,
+centred above each run of consecutive slots on the same layer (drawn by the run's last slot; Spell Engine
+draws the slots left to right). Non-layer binds still show their full combo.
+
 ## 2026-10-01: 1.0.8, the D-up spyglass toggle needs a spyglass
 
 User report: holding D-up still toggled Spyglass mode with no spyglass. Spyglass Improvements 1.5.13
