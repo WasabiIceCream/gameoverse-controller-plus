@@ -731,6 +731,23 @@ class TriggerEngineTest {
     }
 
     @Test
+    void keptToggleStaysOnUntilTheNextTap() {
+        Rig rig = dpadDownRig();
+        rig.press(DOWN);
+        assertEquals(TriggerEngine.Kind.START, only(rig.release(DOWN).events()).kind());
+        rig.press(DOWN);
+        assertEquals(TriggerEngine.Kind.STOP, only(rig.release(DOWN).events()).kind());
+        // No room to stand: the STOP is refused from outside and crawl stays on.
+        rig.engine.keepToggle(1);
+        assertTrue(rig.engine.isToggledOn(1));
+        assertTrue(rig.idle(20).isEmpty());
+        // The next tap (out in the open) stops it, rather than starting it a second time.
+        rig.press(DOWN);
+        assertEquals(TriggerEngine.Kind.STOP, only(rig.release(DOWN).events()).kind());
+        assertFalse(rig.engine.isToggledOn(1));
+    }
+
+    @Test
     void dpadDownHoldDropsThenRepeatsUntilReleased() {
         Rig rig = dpadDownRig();
         rig.press(DOWN);

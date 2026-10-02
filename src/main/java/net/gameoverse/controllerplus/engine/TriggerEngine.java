@@ -545,6 +545,14 @@ public final class TriggerEngine {
         return List.of(new Event(Kind.STOP, bindsById.get(bindId)));
     }
 
+    /**
+     * Undoes a TOGGLE bind's STOP from outside (its action can't stop yet): the bind is on again and
+     * the next activation turns it off. Nothing to send: the STOP never ran.
+     */
+    public void keepToggle(int bindId) {
+        toggledOn.add(bindId);
+    }
+
     /** Screen opened, or this controller stopped being the active one: drop pending work, keep holds. */
     private void softDeactivate(List<Event> events) {
         for (State s : states.values()) {

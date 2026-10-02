@@ -24,6 +24,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.Pose;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -126,7 +127,7 @@ public final class ControllerPlus {
             Identifier bid = id(b);
             return bid != null && raw.isButtonDown(bid);
         }, contexts, scoped);
-        List<TriggerEngine.Event> events = spyglassGate(slot, r.events(), mc, scoped);
+        List<TriggerEngine.Event> events = crawlGate(slot, spyglassGate(slot, r.events(), mc, scoped), mc);
         if (!events.isEmpty()) driver.handle(events, current ? controller : null);
         if (!r.changesView()) return raw;
         return new MaskedStateView(raw, toIds(r.masked()), toIds(r.replay()));
@@ -176,6 +177,42 @@ public final class ControllerPlus {
             }
         }
         return out;
+    }
+
+    private static final String CRAWL_KEY = "controlify_modded:key.crawl";
+
+    /**
+     * Crawl's key only requests crawling while it is down; released under a low ceiling the game keeps
+     * the player crawling until there is room. A crawl toggle turned off there left the player crawling
+     * with the toggle off, so the next tap turned it on with no visible change and the player kept
+     * crawling after getting out. Turning the toggle off is refused while there is no room to stand or
+     * crouch, so the toggle always matches whether the player is crawling.
+     */
+    private List<TriggerEngine.Event> crawlGate(Slot slot, List<TriggerEngine.Event> in, Minecraft mc) {
+        LocalPlayer player = mc.player;
+        if (player == null) return in;
+        List<TriggerEngine.Event> out = new ArrayList<>(in.size());
+        for (TriggerEngine.Event e : in) {
+            if (e.kind() == TriggerEngine.Kind.STOP && e.bind().mode() == ActionMode.TOGGLE
+                    && CRAWL_KEY.equals(e.bind().action()) && !roomToStand(player)) {
+                slot.engine.keepToggle(e.bind());
+                player.sendOverlayMessage(Component.translatable("gameoverse_controller_plus.no_room_to_stand"));
+                continue;
+            }
+            out.add(e);
+        }
+        return out;
+    }
+
+    /** Vanilla's own test ({@code Player.canPlayerFitWithinBlocksAndEntitiesWhen}) for standing or crouching. */
+    private static boolean roomToStand(LocalPlayer player) {
+        for (Pose pose : new Pose[] {Pose.STANDING, Pose.CROUCHING}) {
+            if (player.level().noCollision(player,
+                    player.getDimensions(pose).makeBoundingBox(player.position()).deflate(1.0E-7))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean engineErrorLogged;

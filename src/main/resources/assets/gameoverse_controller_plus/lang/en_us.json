@@ -81,5 +81,6 @@
   "gameoverse_controller_plus.guide.action.gameoverse_controller_plus.key_press/key.jei.showRecipe": "Recipes",
   "gameoverse_controller_plus.guide.action.gameoverse_controller_plus.key_press/key.jei.showUses": "Uses",
   "gameoverse_controller_plus.guide.action.gameoverse_controller_plus.key_press/key.jei.recipeBack": "Back",
-  "gameoverse_controller_plus.no_spyglass": "You don't have a spyglass"
+  "gameoverse_controller_plus.no_spyglass": "You don't have a spyglass",
+  "gameoverse_controller_plus.no_room_to_stand": "No room to stand up"
 }

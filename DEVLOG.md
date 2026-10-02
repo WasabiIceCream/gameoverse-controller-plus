@@ -1,5 +1,19 @@
 # DEVLOG
 
+## 2026-10-02: 1.0.10, crawl toggle stays on while there's no room to stand
+
+User report: toggle crawl, crawl into a one-block gap, tap D-down again while inside: the toggle desynced, like the
+spyglass toggle before 1.0.8. Crawl 0.15.0 (decompiled) only requests crawling while `key.crawl` is down
+(`LocalPlayerMixin.beforeSuperAiStep`); released under a low ceiling, vanilla forces the swimming pose and Crawl's
+`PlayerMixin` turns that into crawling, until the player gets out and stands up on their own. So the tap turned the
+toggle off with the player still crawling, the next tap turned it on with no visible change, and the player kept
+crawling after getting out. Now `crawlGate` (after `spyglassGate` in `ControllerPlus`) refuses a crawl toggle's STOP
+while the player can't stand or crouch (vanilla's own `canPlayerFitWithinBlocksAndEntitiesWhen` test: `noCollision`
+on the pose's box deflated by 1.0E-7), with "No room to stand up"; new engine call `keepToggle` re-arms it, so the next
+tap out in the open stops it. Opening a screen still ends the toggle (the game keeps the player crawling until there is
+room, then stands them up, so nothing is left out of step). New engine test `keptToggleStaysOnUntilTheNextTap`; 94
+tests pass.
+
 ## 2026-10-01: 1.0.9, controller glyphs on Spell Engine's spell hotbar
 
 User request: Spell Engine's spell hotbar labels each slot with its keyboard key (mouse icon for use, "1"

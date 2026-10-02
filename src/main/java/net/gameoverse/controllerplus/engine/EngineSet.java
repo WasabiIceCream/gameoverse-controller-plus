@@ -77,6 +77,12 @@ public final class EngineSet {
         return engine == null ? List.of() : engine.dropToggle(bind.id());
     }
 
+    /** Undoes this TOGGLE bind's STOP: it stays on (see {@link TriggerEngine#keepToggle}). */
+    public void keepToggle(Bind bind) {
+        TriggerEngine engine = engines.get(bind.context());
+        if (engine != null) engine.keepToggle(bind.id());
+    }
+
     /** Drops everything in every context (left the world, keyboard input, config change). */
     public List<TriggerEngine.Event> hardReset() {
         List<TriggerEngine.Event> events = new ArrayList<>();
