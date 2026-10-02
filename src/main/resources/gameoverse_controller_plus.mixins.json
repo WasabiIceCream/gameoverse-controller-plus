@@ -12,7 +12,9 @@
     "KeyMappingAccessor",
     "KeyboardHandlerInvoker",
     "MouseHandlerInvoker",
-    "VirtualMouseHandlerMixin"
+    "VirtualMouseHandlerMixin",
+    "spell.KeyBindingViewModelMixin",
+    "spell.SpellHotBarWidgetMixin"
   ],
   "injectors": {
     "defaultRequire": 0

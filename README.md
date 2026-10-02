@@ -45,6 +45,11 @@ at once and a still-held shoulder stays inert until released. Since 1.0.3 X and 
 A still jumps and B still rolls (1.0.3 also had B held = draw; 1.0.4 dropped it, since the right thumb
 is on the right stick aiming, and RT does the same).
 
+### Spell hotbar glyphs (1.0.9)
+
+With a controller in use, Spell Engine's spell hotbar labels each slot with the controller buttons that cast it
+(LT for the use key, LB/RB + face button for spell slots) instead of keyboard keys. See the DEVLOG.
+
 ### Spyglass Astronomy while scoped (1.0.3)
 
 Spyglass Astronomy 1.0.27 has no key bindings of its own. Its client tick polls vanilla keys while the

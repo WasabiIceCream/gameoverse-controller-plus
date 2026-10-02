@@ -1,5 +1,6 @@
 package net.gameoverse.controllerplus.mixin;
 
+import net.fabricmc.loader.api.FabricLoader;
 import java.util.List;
 import java.util.Set;
 import net.gameoverse.controllerplus.client.HookStatus;
@@ -39,6 +40,15 @@ public final class ControllerPlusMixinPlugin implements IMixinConfigPlugin {
                 LOG.warn("Controlify hook NOT applied: stick scrolling; the Guide, Field Guide, Scholar books and other "
                         + "whole-notch screens scroll with Controlify's own (fractional) scrolling. "
                         + "Controlify's VirtualMouseHandler.handleScroll changed.");
+            }
+        } else if (mixinClassName.endsWith("KeyBindingViewModelMixin") || mixinClassName.endsWith("SpellHotBarWidgetMixin")) {
+            boolean label = mixinClassName.endsWith("KeyBindingViewModelMixin");
+            String method = label ? "from" : "drawKeybinding";
+            if (callsHandler(targetClass, method, label ? "gcp$controllerLabel" : "gcp$drawGlyph")) {
+                LOG.info("Spell Engine hook applied: spell hotbar controller glyphs ({})", method);
+            } else {
+                LOG.warn("Spell Engine hook NOT applied: spell hotbar controller glyphs ({}); the spell hotbar shows "
+                        + "keyboard keys. Spell Engine's HudRenderHelper changed.", method);
             }
         } else if (mixinClassName.endsWith("GuideInstanceImplMixin")) {
             boolean filter = callsHandler(targetClass, "update", "gcp$filterGuideRules");
@@ -85,7 +95,8 @@ public final class ControllerPlusMixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
-        return true;
+        // Spell Engine's hotbar glyphs only when Spell Engine is installed (its classes are compile-only).
+        return !mixinClassName.contains(".mixin.spell.") || FabricLoader.getInstance().isModLoaded("spell_engine");
     }
 
     @Override

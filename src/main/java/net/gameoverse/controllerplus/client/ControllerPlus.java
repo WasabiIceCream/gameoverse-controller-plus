@@ -91,6 +91,15 @@ public final class ControllerPlus {
         LOG.info("Loaded {} advanced controller binds ({})", compiled.size(), config.customized ? "customized" : "defaults");
     }
 
+    /** The first in-game bind that runs this action, or null (none, or advanced binds are off). */
+    public Bind bindFor(String action) {
+        if (!config.enabled) return null;
+        for (Bind b : compiled) {
+            if (b.context() == InputContext.GAME && action.equals(b.action())) return b;
+        }
+        return null;
+    }
+
     /** The button guide planner for the binds in effect, or null while advanced binds are off. */
     GuidePlanner guidePlanner() {
         return config.enabled && !compiled.isEmpty() ? planner : null;

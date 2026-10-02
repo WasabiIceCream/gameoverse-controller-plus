@@ -1,5 +1,20 @@
 # DEVLOG
 
+## 2026-10-01: 1.0.9, controller glyphs on Spell Engine's spell hotbar
+
+User request: Spell Engine's spell hotbar labels each slot with its keyboard key (mouse icon for use, "1"
+for the hotbar-1 fallback when its own spell keys are unbound), even with a controller. Spell Engine 1.10.9
+(decompiled): `HudRenderHelper.SpellHotBarWidget.KeyBindingViewModel.from(KeyMapping)` builds the label (a
+`Drawable.Component` texture for mouse buttons, else acronym text); `SpellHotBarWidget.drawKeybinding` draws a
+key cap with that text. `SpellHotbar.Slot.modifier` is always null in this version.
+
+`client.SpellHudGlyphs` + two mixins (`mixin.spell`, applied only with Spell Engine loaded, confirmed in the log):
+while Controlify is in controller mode, `from` returns a marker label for the key's controller glyph and
+`drawKeybinding` draws that glyph component instead of a key cap. The glyph: the use key gets Controlify's use
+binding (LT); spell slot n's key (identity with `SpellSlots.resolve(n)`) gets our `spell_slot_n` bind's buttons
+(LB+A by default, "modifier+button" for layers, both buttons for chords); any other key its
+`controlify_modded:` binding if bound, else Spell Engine's own label.
+
 ## 2026-10-01: 1.0.8, the D-up spyglass toggle needs a spyglass
 
 User report: holding D-up still toggled Spyglass mode with no spyglass. Spyglass Improvements 1.5.13
