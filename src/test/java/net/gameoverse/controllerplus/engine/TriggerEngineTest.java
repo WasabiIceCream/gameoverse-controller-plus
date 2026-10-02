@@ -399,6 +399,23 @@ class TriggerEngineTest {
     }
 
     @Test
+    void droppedToggleTurnsOnAgainNextTime() {
+        Rig rig = new Rig(6, Bind.hold(1, UP, 5, "spyglass", ActionMode.TOGGLE));
+        rig.press(UP);
+        assertEquals(TriggerEngine.Kind.START, only(rig.idle(5)).kind());
+        rig.release(UP);
+        assertTrue(rig.engine.isToggledOn(1));
+        // The action couldn't run (no spyglass): dropped from outside, with its STOP.
+        TriggerEngine.Event e = only(rig.engine.dropToggle(1));
+        assertEquals(TriggerEngine.Kind.STOP, e.kind());
+        assertFalse(rig.engine.isToggledOn(1));
+        assertTrue(rig.engine.dropToggle(1).isEmpty(), "dropping twice does nothing");
+        // The next hold starts it again instead of stopping a toggle that isn't running.
+        rig.press(UP);
+        assertEquals(TriggerEngine.Kind.START, only(rig.idle(5)).kind());
+    }
+
+    @Test
     void deactivationStopsToggles() {
         Rig rig = new Rig(6, Bind.tap(1, DOWN, "t", ActionMode.TOGGLE));
         assertEquals(TriggerEngine.Kind.START, only(rig.press(DOWN).events()).kind());

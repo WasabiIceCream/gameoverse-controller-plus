@@ -1,5 +1,19 @@
 # DEVLOG
 
+## 2026-10-01: 1.0.8, the D-up spyglass toggle needs a spyglass
+
+User report: holding D-up still toggled Spyglass mode with no spyglass. Spyglass Improvements 1.5.13
+(decompiled): its key raises a spyglass from the hands, the inventory or a Trinkets slot, or with none in
+creative or with its `userForceSpyglass` setting; otherwise it does nothing, but its `MinecraftClientMixin`
+makes vanilla's use-key check true while its key is down, so our toggle left "use" held (an item in use kept
+going) and the next D-up hold only turned that off.
+
+Fix: `compat.SpyglassImprovements.canScope` mirrors those checks (Trinkets and the setting by reflection);
+`ControllerPlus.spyglassGate` drops the toggle's START when it fails (overlay "You don't have a spyglass") and
+releases a toggle that's on without scoping for 10 ticks (not counting ticks with another item in use, since
+the spyglass comes up after it), e.g. the spyglass was dropped or swapped away. Engine: `dropToggle` /
+`isToggledOn` (TriggerEngine and EngineSet), with a test that the next hold toggles on again.
+
 ## 2026-10-01: 1.0.7, right-stick scrolling in BRBE's recipe book
 
 User request: the right stick needs the same scrolling fix in BRBE's recipe book. Findings (BRBE

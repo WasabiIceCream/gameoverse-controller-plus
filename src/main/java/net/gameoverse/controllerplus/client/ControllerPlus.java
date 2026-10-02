@@ -11,14 +11,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import net.fabricmc.loader.api.FabricLoader;
+import net.gameoverse.controllerplus.compat.SpyglassImprovements;
 import net.gameoverse.controllerplus.config.BindEntry;
 import net.gameoverse.controllerplus.config.ControllerPlusConfig;
+import net.gameoverse.controllerplus.engine.ActionMode;
 import net.gameoverse.controllerplus.engine.Bind;
 import net.gameoverse.controllerplus.engine.EngineSet;
 import net.gameoverse.controllerplus.engine.InputContext;
 import net.gameoverse.controllerplus.engine.GuidePlanner;
 import net.gameoverse.controllerplus.engine.TriggerEngine;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +46,8 @@ public final class ControllerPlus {
         final EngineSet engine;
         final ControllerEntity controller;
         boolean hardActive;
+        /** Spyglass toggles that are on: ticks since start without scoping or another item in use. */
+        final Map<Bind, Integer> spyglassIdle = new HashMap<>();
 
         Slot(EngineSet engine, ControllerEntity controller) {
             this.engine = engine;
@@ -111,9 +117,56 @@ public final class ControllerPlus {
             Identifier bid = id(b);
             return bid != null && raw.isButtonDown(bid);
         }, contexts, scoped);
-        if (!r.events().isEmpty()) driver.handle(r.events(), current ? controller : null);
+        List<TriggerEngine.Event> events = spyglassGate(slot, r.events(), mc, scoped);
+        if (!events.isEmpty()) driver.handle(events, current ? controller : null);
         if (!r.changesView()) return raw;
         return new MaskedStateView(raw, toIds(r.masked()), toIds(r.replay()));
+    }
+
+    /** Ticks a spyglass toggle may stay on without the spyglass coming up before it is released. */
+    private static final int SPYGLASS_GRACE_TICKS = 10;
+
+    /**
+     * The spyglass key toggle only turns on when Spyglass Improvements would raise a spyglass; without
+     * one the held key just keeps any other item use going (see {@link SpyglassImprovements}). A toggle
+     * that is on but not scoping (the spyglass was dropped, or never came up) is released after a short
+     * grace, not counting ticks where another item is in use (the spyglass comes up after it).
+     */
+    private List<TriggerEngine.Event> spyglassGate(Slot slot, List<TriggerEngine.Event> in, Minecraft mc, boolean scoped) {
+        LocalPlayer player = mc.player;
+        List<TriggerEngine.Event> out = new ArrayList<>(in.size());
+        for (TriggerEngine.Event e : in) {
+            if (!SpyglassImprovements.isKey(e.bind().action()) || e.bind().mode() != ActionMode.TOGGLE) {
+                out.add(e);
+                continue;
+            }
+            if (e.kind() == TriggerEngine.Kind.START) {
+                if (player != null && !SpyglassImprovements.canScope(player)) {
+                    slot.engine.dropToggle(e.bind());
+                    player.sendOverlayMessage(Component.translatable("gameoverse_controller_plus.no_spyglass"));
+                    continue;
+                }
+                slot.spyglassIdle.put(e.bind(), 0);
+            } else if (e.kind() == TriggerEngine.Kind.STOP) {
+                slot.spyglassIdle.remove(e.bind());
+            }
+            out.add(e);
+        }
+        var it = slot.spyglassIdle.entrySet().iterator();
+        while (it.hasNext()) {
+            var entry = it.next();
+            if (!slot.engine.isToggledOn(entry.getKey())) {
+                it.remove();
+            } else if (scoped || (player != null && player.isUsingItem())) {
+                entry.setValue(0);
+            } else if (entry.getValue() + 1 > SPYGLASS_GRACE_TICKS) {
+                out.addAll(slot.engine.dropToggle(entry.getKey()));
+                it.remove();
+            } else {
+                entry.setValue(entry.getValue() + 1);
+            }
+        }
+        return out;
     }
 
     private static boolean engineErrorLogged;

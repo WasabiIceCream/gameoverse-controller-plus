@@ -22,7 +22,7 @@ list in the config screen.
 | hold Back 450 ms | Gameoverse Guide (`key.oracle_index.open`) | press |
 | hold Y 400 ms | World Tier select (`key.apotheosis.open_world_tier_select`) | press |
 | tap D-up | MapStitch world map (`mapstitch.key.open_world_map`) | press |
-| hold D-up 250 ms | spyglass (`key.spyglass-improvements.use`) | toggle |
+| hold D-up 250 ms | spyglass (`key.spyglass-improvements.use`) | toggle; only with a spyglass (1.0.8) |
 | tap D-down | Crawl (`key.crawl`) | toggle |
 | hold D-down 250 ms | drop one item from the held stack, then one more every 150 ms while held | repeat |
 | tap D-left | Hotbar Slot Cycling cycle left | press |

@@ -531,6 +531,20 @@ public final class TriggerEngine {
         }
     }
 
+    /** True while a TOGGLE bind is on. */
+    public boolean isToggledOn(int bindId) {
+        return toggledOn.contains(bindId);
+    }
+
+    /**
+     * Turns a TOGGLE bind off from outside (its action can't run, or stopped on its own): its STOP
+     * event, or nothing if it wasn't on. The next activation toggles it on again.
+     */
+    public List<Event> dropToggle(int bindId) {
+        if (!toggledOn.remove(bindId)) return List.of();
+        return List.of(new Event(Kind.STOP, bindsById.get(bindId)));
+    }
+
     /** Screen opened, or this controller stopped being the active one: drop pending work, keep holds. */
     private void softDeactivate(List<Event> events) {
         for (State s : states.values()) {

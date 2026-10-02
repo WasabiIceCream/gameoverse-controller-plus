@@ -65,6 +65,18 @@ public final class EngineSet {
         return new TriggerEngine.Result(masked, replay, events);
     }
 
+    /** True while this TOGGLE bind is on. */
+    public boolean isToggledOn(Bind bind) {
+        TriggerEngine engine = engines.get(bind.context());
+        return engine != null && engine.isToggledOn(bind.id());
+    }
+
+    /** Turns this TOGGLE bind off from outside: its STOP event, or nothing if it wasn't on. */
+    public List<TriggerEngine.Event> dropToggle(Bind bind) {
+        TriggerEngine engine = engines.get(bind.context());
+        return engine == null ? List.of() : engine.dropToggle(bind.id());
+    }
+
     /** Drops everything in every context (left the world, keyboard input, config change). */
     public List<TriggerEngine.Event> hardReset() {
         List<TriggerEngine.Event> events = new ArrayList<>();
