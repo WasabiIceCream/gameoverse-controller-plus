@@ -26,7 +26,7 @@ class ConfigTest {
         }
         assertEquals(2, screen);
         assertEquals(1, recipe);
-        assertEquals(24, defaults.size());
+        assertEquals(25, defaults.size());
         assertFalse(defaults.contains(Defaults.legacyScopedB()), "1.0.4: no scoped B draw bind");
     }
 
@@ -98,9 +98,30 @@ class ConfigTest {
         edited.mode = ActionMode.PRESS;
         c.binds.add(edited);
         c.migrate();
-        assertEquals(1, c.binds.size(), "an edited B bind is the user's own");
+        assertEquals(2, c.binds.size(), "an edited B bind is the user's own (plus the version 4 boots toggle)");
         c.binds.add(Defaults.legacyScopedB());
-        c.migrate(); // now version 3
-        assertEquals(2, c.binds.size(), "a version 3 file keeps a B bind the user added back");
+        c.migrate(); // now version 4
+        assertEquals(3, c.binds.size(), "a current file keeps a B bind the user added back");
+    }
+
+    @Test
+    void version3CustomizedGetsBootsToggle() {
+        ControllerPlusConfig c = new ControllerPlusConfig();
+        c.version = 3;
+        c.customized = true;
+        c.binds.add(BindEntry.of(TriggerType.TAP, "controlify:button/dpad_right", null, 0, 2, 250, "x", ActionMode.PRESS));
+        c.migrate();
+        assertTrue(c.binds.contains(Defaults.bootsToggle()), "a tap on D-right doesn't block the hold");
+    }
+
+    @Test
+    void version3CustomizedHoldOnDpadRightKept() {
+        ControllerPlusConfig c = new ControllerPlusConfig();
+        c.version = 3;
+        c.customized = true;
+        BindEntry own = BindEntry.of(TriggerType.HOLD, "controlify:button/dpad_right", null, 300, 2, 250, "y", ActionMode.PRESS);
+        c.binds.add(own);
+        c.migrate();
+        assertEquals(1, c.binds.size(), "the player's own D-right hold stays, no boots toggle added");
     }
 }

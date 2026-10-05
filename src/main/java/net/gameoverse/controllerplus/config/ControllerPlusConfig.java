@@ -27,7 +27,7 @@ public final class ControllerPlusConfig {
      * 2 since 1.0.3: a Scoped bind in Press mode fires once; Repeat mode repeats. 3 since 1.0.4: the
      * 1.0.3 default scoped B draw/select bind is gone.
      */
-    public static final int CURRENT_VERSION = 3;
+    public static final int CURRENT_VERSION = 4;
 
     public int version = CURRENT_VERSION;
     public boolean enabled = true;
@@ -103,6 +103,8 @@ public final class ControllerPlusConfig {
      * <p>Version 2 (1.0.3) shipped a scoped "hold B = draw/select" default; a customized list still
      * holding exactly that entry loses it (an edited one, other button/action/mode/times, stays). If
      * the list then matches the defaults it goes back to following them.
+     * <p>Version 4 (1.0.11) adds hold D-right = Apotheosis's boots toggle; a customized list gets it too unless it
+     * already has a Hold bind on D-right.
      */
     void migrate() {
         if (version < 2) {
@@ -118,6 +120,13 @@ public final class ControllerPlusConfig {
             if (binds.removeIf(legacy::equals) && binds.equals(Defaults.binds())) {
                 customized = false;
                 binds = new ArrayList<>();
+            }
+        }
+        if (version < 4 && customized) {
+            BindEntry boots = Defaults.bootsToggle();
+            boolean taken = binds.stream().anyMatch(e -> e.type == boots.type && java.util.Objects.equals(e.button, boots.button));
+            if (!taken) {
+                binds.add(boots);
             }
         }
         version = CURRENT_VERSION;

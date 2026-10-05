@@ -15,6 +15,12 @@ import net.gameoverse.controllerplus.engine.TriggerType;
  * they customise their own binds (see {@link ControllerPlusConfig#customized}).
  */
 public final class Defaults {
+    /** Hold D-right: Apotheosis's "Toggle Boots Bonuses" key (1.0.11, config version 4). */
+    public static BindEntry bootsToggle() {
+        return BindEntry.of(TriggerType.HOLD, BTN + "dpad_right", null, 250, 2, 250,
+                "controlify_modded:key.apotheosis.toggle_attribute_bonuses", PRESS);
+    }
+
     public static final String BTN = "controlify:button/";
     public static final String SPELL_SLOT = "gameoverse_controller_plus:spell_slot_";
     /** One mouse-wheel notch up / down, through Minecraft's own scroll handler (spyglass and zoom mods listen there). */
@@ -88,6 +94,9 @@ public final class Defaults {
                 "controlify_modded:key.hotbarslotcycling.cycle_left", PRESS));
         list.add(BindEntry.of(TriggerType.HOLD, BTN + "dpad_left", null, 250, 2, 250,
                 "controlify:pick_block", PRESS));
+        // Hold D-right: Apotheosis's boots toggle (Unhurried/Surefooted/Steadfast switch speed and step height
+        // bonuses off); tap keeps Controlify's radial menu (1.0.11).
+        list.add(bootsToggle());
         // While scoped (spyglass, Spyglass Improvements, Ok Zoomer): RB zooms in, LB zooms out, one
         // wheel notch per press, repeating after 300 ms every 100 ms. LB/RB do nothing else then.
         // (Repeat mode: until 1.0.2 a Scoped bind in Press mode repeated; now Press fires once.)

@@ -465,3 +465,12 @@ In-game test script:
 8. Tap D-left: hotbar row cycles. Hold D-left on a block you carry: pick block.
 9. ModMenu > Gameoverse Controller Plus: change LB+A to Press mode, Save, confirm the file appears
    in `config/`; Reset to defaults, Save, file drops back to no binds.
+
+## 1.0.11 (2026-10-05): hold D-right = boots toggle
+
+Apotheosis 0.5.0 (upstream 9.1.0) adds boots affixes (Unhurried, Surefooted, Steadfast) that switch movement speed and
+step height bonuses off with a key, `key.apotheosis.toggle_attribute_bonuses` (; by default in our port: upstream's
+Ctrl+K collided with the Skill Forest's K, and Controlify's emulated presses can't hold Ctrl). Hold D-right 250 ms
+presses it; tapping D-right still opens Controlify's radial menu (on release now, like the other D-pad splits). Not on
+B: B is the combat roll, and A/X/B are never delayed. Config version 4 adds the bind to customized lists that have no
+Hold bind on D-right yet (`ConfigTest`).

@@ -27,6 +27,7 @@ list in the config screen.
 | hold D-down 250 ms | drop one item from the held stack, then one more every 150 ms while held | repeat |
 | tap D-left | Hotbar Slot Cycling cycle left | press |
 | hold D-left 250 ms | pick block | press |
+| hold D-right 250 ms | Apotheosis boots toggle (`key.apotheosis.toggle_attribute_bonuses`; tap keeps Controlify's radial menu) | press (1.0.11) |
 | RB while scoped | scroll up one notch (zoom in), repeats after 300 ms every 100 ms | repeat |
 | LB while scoped | scroll down one notch (zoom out), same repeat | repeat |
 | Y while scoped | Spyglass Astronomy: next mode (normal, draw constellations, select) | press |
